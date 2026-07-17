@@ -1,7 +1,7 @@
 # Security policy for nostos-skills
 
-> Stage 0 placeholder: the private vulnerability-reporting process will be finalized before public preview in Stage 12.
+There is no supported Skill release. Current workflows/installers are evaluation-only.
 
-Do not disclose suspected vulnerabilities in a public issue. Until a private reporting channel is published, coordinate privately with the repository owner without including secrets or exploit details in public systems.
+Privately report prompt/workflow injection that crosses documented authority, unsafe target/path or symlink handling, source-conflict bypass, provenance spoofing, adapter divergence, credential disclosure, or direct `.ndb` mutation through **Security → Report a vulnerability** after private reporting is enabled. If absent, request enablement publicly without details and wait.
 
-No supported release exists yet, and no security-response service-level agreement is offered.
+Use synthetic projects and redact source contents/locators. Maintainers target acknowledgement in three business days and triage in seven, without an SLA or bounty.

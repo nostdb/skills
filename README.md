@@ -2,6 +2,8 @@
 
 Portable Codex and Claude workflows for NostosDB, licensed under Apache-2.0.
 
+Public-preview source only: no supported Skill package, registry publication, model guarantee, or external contribution intake exists. Read [PREVIEW.md](PREVIEW.md), [SECURITY.md](SECURITY.md), and [CLA status](CLA.md).
+
 Six canonical Agent Skills coordinate projects, deterministic Core commands, ingestion, schema evolution, exploration, and visualization. Both platform adapters install the same Skill bytes and shared support files; only their discovery directory differs.
 
 ## Install
