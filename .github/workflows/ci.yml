@@ -39,10 +39,10 @@ jobs:
         with: {path: nostos-skills}
       - name: Check out CLI
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with: {repository: nostosdb/nostos-cli, path: nostos-cli}
+        with: {repository: nostosdb/nostosdb-cli, path: nostos-cli}
       - name: Check out Core
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with: {repository: nostosdb/nostos-core, path: nostos-core}
+        with: {repository: nostosdb/nostosdb-core, path: nostos-core}
       - name: Build compatible CLI
         working-directory: nostos-cli
         run: cargo build --locked
