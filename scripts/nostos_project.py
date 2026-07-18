@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 from nostos_config import (
+    CORE_PROVIDERS,
     ConfigError,
     atomic_write,
     config_path,
@@ -15,6 +16,7 @@ from nostos_config import (
     read_text,
     update_sections,
     validate_core_version,
+    validate_core_provider,
     validate_database_path,
     validate_module_id,
 )
@@ -40,6 +42,7 @@ def initialize(args: argparse.Namespace) -> dict:
         )
     module_id = validate_module_id(args.module_id or str(uuid.uuid4()))
     validate_core_version(args.core_version)
+    validate_core_provider(args.core_provider)
     validate_database_path(args.database)
     project.mkdir(parents=True, exist_ok=True)
     source.parent.mkdir(parents=True, exist_ok=True)
@@ -56,6 +59,7 @@ def initialize(args: argparse.Namespace) -> dict:
         '{entry} = {module_id}\n\n'
         '[skills]\n'
         'core_version = {core_version}\n'
+        'core_provider = {core_provider}\n'
         'database = {database}\n'
         '{core_binary}'
     ).format(
@@ -63,6 +67,7 @@ def initialize(args: argparse.Namespace) -> dict:
         entry=json.dumps(source_relative),
         module_id=json.dumps(module_id),
         core_version=json.dumps(args.core_version),
+        core_provider=json.dumps(args.core_provider),
         database=json.dumps(args.database),
         core_binary=core_binary,
     )
@@ -96,6 +101,8 @@ def configure(args: argparse.Namespace) -> dict:
         skills["core_version"] = validate_core_version(args.core_version)
     if args.core_binary:
         skills["core_binary"] = args.core_binary
+    if args.core_provider:
+        skills["core_provider"] = validate_core_provider(args.core_provider)
     if args.database:
         skills["database"] = validate_database_path(args.database)
     if skills:
@@ -114,6 +121,7 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--project", type=Path, required=True)
     init.add_argument("--layout", choices=("centralized", "colocated", "single"), required=True)
     init.add_argument("--core-version", default=DEFAULT_CORE_VERSION)
+    init.add_argument("--core-provider", choices=CORE_PROVIDERS, default="auto")
     init.add_argument("--core-binary")
     init.add_argument("--database", default="graph.ndb")
     init.add_argument("--module-id")
@@ -123,6 +131,7 @@ def parser() -> argparse.ArgumentParser:
     change.add_argument("--project", type=Path, required=True)
     change.add_argument("--layout", choices=("centralized", "colocated", "single"))
     change.add_argument("--core-version")
+    change.add_argument("--core-provider", choices=CORE_PROVIDERS)
     change.add_argument("--core-binary")
     change.add_argument("--database")
     change.set_defaults(handler=configure)

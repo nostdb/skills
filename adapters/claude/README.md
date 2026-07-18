@@ -6,4 +6,4 @@ This adapter selects the Claude project discovery directory and delegates instal
 python3 adapters/claude/install.py --project /path/to/project
 ```
 
-The default copy mode installs identical Skills under `.claude/skills` and shared support under `.claude/references` and `.claude/scripts`. Existing paths are refused unless `--force` is explicit. `--mode symlink` is available for local development.
+The default copy mode installs exactly `nostos` and `nostos-visualize` under `.claude/skills` and shared support under `.claude/references` and `.claude/scripts`. Existing paths are refused unless `--force` is explicit. `--mode symlink` is available for local development.

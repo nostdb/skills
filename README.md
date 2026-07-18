@@ -4,7 +4,12 @@ Portable Codex and Claude workflows for NostosDB, licensed under Apache-2.0.
 
 Public-preview source only: no supported Skill package, registry publication, model guarantee, or external contribution intake exists. Read [PREVIEW.md](PREVIEW.md), [SECURITY.md](SECURITY.md), and [CLA status](CLA.md).
 
-Six canonical Agent Skills coordinate projects, deterministic Core commands, ingestion, schema evolution, exploration, and visualization. Both platform adapters install the same Skill bytes and shared support files; only their discovery directory differs.
+Two canonical Agent Skills provide the public surface:
+
+- `nostos` is the default entry point for project setup, deterministic Core commands, Schema evolution, ingestion, and exploration.
+- `nostos-visualize` is the separate graph-representation workflow for reviewable diagrams and visualization datasets.
+
+Users do not choose separate Core, Schema, ingestion, exploration, or orchestration Skills. Both platform adapters install exactly the same two Skill directories and shared support files; only their discovery directory differs.
 
 ## Install
 
@@ -26,6 +31,8 @@ python3 scripts/nostos_core.py resolve --project /path/to/project
 ```
 
 Skills may write complete canonical `.nostos` files and invoke supported CLI commands. They never parse, generate, patch, or decode `.ndb` directly.
+
+The implemented [Core provider contract](references/core-providers.md) keeps the installed CLI as the first choice and adds exact-version `npx` as an explicitly configured zero-install fallback. Existing projects without `core_provider` remain installed-only.
 
 ## Verify
 

@@ -1,6 +1,6 @@
 # Skills preview status
 
-The six portable Skills and two installation adapters are Apache-2.0 evaluation workflows, not a supported package.
+The two portable Skills (`nostos` and `nostos-visualize`) and two installation adapters are Apache-2.0 evaluation workflows, not a supported package.
 
 - Workflows can propose and canonically rewrite `.nostos`; they never write `.ndb`.
 - Deterministic parsing, validation, sync, and query behavior belongs to the exact compatible CLI/Core version pinned by the project.

@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -11,17 +12,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "portable"
+sys.path.insert(0, str(ROOT / "scripts"))
+from nostos_core import native_command, npx_command  # noqa: E402
+
+
 SKILLS = (
-    "nostos-orchestrator",
-    "nostos-core",
-    "nostos-ingest",
-    "nostos-schema",
-    "nostos-explore",
+    "nostos",
     "nostos-visualize",
 )
 
 
-def invoke(*arguments, cwd=None):
+def invoke(*arguments, cwd=None, env=None):
     return subprocess.run(
         [str(argument) for argument in arguments],
         cwd=str(cwd) if cwd else None,
@@ -29,6 +30,7 @@ def invoke(*arguments, cwd=None):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env=env,
     )
 
 
@@ -50,7 +52,7 @@ class SkillTests(unittest.TestCase):
     def test_repository_verifier_and_portable_frontmatter(self):
         result = invoke(sys.executable, ROOT / "scripts" / "verify_skills.py")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("skills: 6", result.stdout)
+        self.assertIn("skills: 2", result.stdout)
         for name in SKILLS:
             text = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             header = text.split("---", 2)[1].strip().splitlines()
@@ -84,6 +86,7 @@ class SkillTests(unittest.TestCase):
             config = (project / "nostos.toml").read_text(encoding="utf-8")
             self.assertIn('layout = "{}"'.format(layout), config)
             self.assertIn('core_version = "0.1.0"', config)
+            self.assertIn('core_provider = "auto"', config)
             self.assertIn('database = "graph.ndb"', config)
             self.assertIn('"{}" = "11111111-1111-1111-1111-111111111111"'.format(source), config)
 
@@ -196,6 +199,336 @@ class SkillTests(unittest.TestCase):
             "--json",
         )
         self.assertEqual(json.loads(details.stdout)["database"], "graph.ndb")
+        self.assertEqual(json.loads(details.stdout)["provider"], "native")
+
+    def test_native_provider_priority_and_installed_only_policy(self):
+        project = self.temporary / "providers"
+        binaries = {}
+        for name in ("explicit", "environment", "configured", "path"):
+            binary = self.temporary / ("nostos-" + name)
+            binary.write_text(
+                "#!{}\nimport sys\nprint('nostos 0.1.0')\n".format(sys.executable),
+                encoding="utf-8",
+            )
+            binary.chmod(0o755)
+            binaries[name] = binary
+        initialized = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostos_project.py",
+            "init",
+            "--project",
+            project,
+            "--layout",
+            "single",
+            "--core-provider",
+            "installed",
+            "--core-binary",
+            binaries["configured"],
+            "--module-id",
+            "11111111-1111-1111-1111-111111111111",
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        path_directory = self.temporary / "path-bin"
+        path_directory.mkdir()
+        shutil.copy2(binaries["path"], path_directory / "nostos")
+        environment = os.environ.copy()
+        environment["NOSTOS_BIN"] = str(binaries["environment"])
+        environment["PATH"] = str(path_directory) + os.pathsep + environment.get("PATH", "")
+        command = [
+            sys.executable,
+            str(ROOT / "scripts" / "nostos_core.py"),
+            "resolve",
+            "--project",
+            str(project),
+        ]
+        explicit = invoke(*command, "--binary", binaries["explicit"], env=environment)
+        self.assertEqual(Path(explicit.stdout.strip()), binaries["explicit"].resolve())
+        from_environment = invoke(*command, env=environment)
+        self.assertEqual(
+            Path(from_environment.stdout.strip()), binaries["environment"].resolve()
+        )
+        environment.pop("NOSTOS_BIN")
+        configured = invoke(*command, env=environment)
+        self.assertEqual(Path(configured.stdout.strip()), binaries["configured"].resolve())
+        config_path = project / "nostos.toml"
+        config_path.write_text(
+            config_path.read_text(encoding="utf-8").replace(
+                'core_binary = "{}"\n'.format(binaries["configured"]), ""
+            ),
+            encoding="utf-8",
+        )
+        from_path = invoke(*command, env=environment)
+        self.assertEqual(Path(from_path.stdout.strip()), (path_directory / "nostos").resolve())
+
+        npx_log = self.temporary / "npx.log"
+        fake_npx = path_directory / "npx"
+        fake_npx.write_text(
+            "#!{}\nfrom pathlib import Path\nPath({!r}).write_text('called')\n"
+            .format(sys.executable, str(npx_log)),
+            encoding="utf-8",
+        )
+        fake_npx.chmod(0o755)
+        (path_directory / "nostos").unlink()
+        missing = invoke(*command, env=environment)
+        self.assertEqual(missing.returncode, 3)
+        self.assertIn("cannot locate nostos 0.1.0", missing.stderr)
+        self.assertFalse(npx_log.exists())
+        config_path.write_text(
+            config_path.read_text(encoding="utf-8").replace(
+                'core_provider = "installed"\n', ""
+            ),
+            encoding="utf-8",
+        )
+        legacy_missing = invoke(*command, env=environment)
+        self.assertEqual(legacy_missing.returncode, 3)
+        self.assertIn("cannot locate nostos 0.1.0", legacy_missing.stderr)
+        self.assertFalse(npx_log.exists())
+
+    def test_npx_provider_is_pinned_and_preserves_process_behavior(self):
+        project = self.temporary / "npx-project"
+        initialized = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostos_project.py",
+            "init",
+            "--project",
+            project,
+            "--layout",
+            "single",
+            "--core-provider",
+            "auto",
+            "--module-id",
+            "11111111-1111-1111-1111-111111111111",
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        tools = self.temporary / "npx-bin"
+        tools.mkdir()
+        npx_log = self.temporary / "npx.jsonl"
+        signal_log = self.temporary / "signal.txt"
+        fake_cli = self.temporary / "fake-cli.py"
+        fake_cli.write_text(
+            "#!{}\n"
+            "import os, signal, sys, time\n"
+            "if sys.argv[1:] == ['--version']:\n"
+            "    print('nostos 0.1.0')\n"
+            "elif sys.argv[1:] == ['forward', 'values with spaces', ';not-shell']:\n"
+            "    print('forwarded stdout')\n"
+            "    print('forwarded stderr', file=sys.stderr)\n"
+            "    sys.exit(7)\n"
+            "elif sys.argv[1:] == ['wait-signal']:\n"
+            "    def stopped(signum, frame):\n"
+            "        open(os.environ['SIGNAL_LOG'], 'w').write(str(signum))\n"
+            "        sys.exit(0)\n"
+            "    signal.signal(signal.SIGTERM, stopped)\n"
+            "    print('ready', flush=True)\n"
+            "    while True: time.sleep(0.05)\n"
+            "else:\n"
+            "    sys.exit(9)\n".format(sys.executable),
+            encoding="utf-8",
+        )
+        fake_cli.chmod(0o755)
+        fake_npx = tools / "npx"
+        fake_npx.write_text(
+            "#!{}\n"
+            "import json, os, subprocess, sys\n"
+            "with open(os.environ['NPX_LOG'], 'a') as output:\n"
+            "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "if sys.argv[1:4] != ['--yes', '--package=@nostosdb/cli@0.1.0', 'nostos']:\n"
+            "    sys.exit(97)\n"
+            "sys.exit(subprocess.run([os.environ['FAKE_CLI']] + sys.argv[4:]).returncode)\n"
+            .format(sys.executable),
+            encoding="utf-8",
+        )
+        fake_npx.chmod(0o755)
+        wrong_native = tools / "nostos"
+        wrong_native.write_text(
+            "#!{}\nprint('nostos 9.9.9')\n".format(sys.executable),
+            encoding="utf-8",
+        )
+        wrong_native.chmod(0o755)
+        configured = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostos_project.py",
+            "configure",
+            "--project",
+            project,
+            "--core-provider",
+            "npx",
+        )
+        self.assertEqual(configured.returncode, 0, configured.stderr)
+        environment = os.environ.copy()
+        environment.pop("NOSTOS_BIN", None)
+        environment["PATH"] = str(tools)
+        environment["NPX_LOG"] = str(npx_log)
+        environment["FAKE_CLI"] = str(fake_cli)
+        environment["SIGNAL_LOG"] = str(signal_log)
+        base = [
+            sys.executable,
+            str(ROOT / "scripts" / "nostos_core.py"),
+        ]
+        resolved = invoke(
+            *base, "resolve", "--project", project, "--json", env=environment
+        )
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        details = json.loads(resolved.stdout)
+        self.assertEqual(details["provider"], "npx")
+        self.assertIsNone(details["binary"])
+        self.assertEqual(
+            details["command"][1:],
+            ["--yes", "--package=@nostosdb/cli@0.1.0", "nostos"],
+        )
+        explicit = invoke(
+            *base,
+            "resolve",
+            "--project",
+            project,
+            "--binary",
+            fake_cli,
+            env=environment,
+        )
+        self.assertEqual(explicit.returncode, 3)
+        self.assertIn("cannot be combined", explicit.stderr)
+        forwarded = invoke(
+            *base,
+            "run",
+            "--project",
+            project,
+            "--",
+            "forward",
+            "values with spaces",
+            ";not-shell",
+            env=environment,
+        )
+        self.assertEqual(forwarded.returncode, 7)
+        self.assertEqual(forwarded.stdout, "forwarded stdout\n")
+        self.assertEqual(forwarded.stderr, "forwarded stderr\n")
+        calls = [json.loads(line) for line in npx_log.read_text().splitlines()]
+        self.assertEqual(calls[-1][-3:], ["forward", "values with spaces", ";not-shell"])
+
+        configured_auto = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostos_project.py",
+            "configure",
+            "--project",
+            project,
+            "--core-provider",
+            "auto",
+        )
+        self.assertEqual(configured_auto.returncode, 0, configured_auto.stderr)
+        process = subprocess.Popen(
+            base
+            + [
+                "run",
+                "--project",
+                str(project),
+                "--binary",
+                str(fake_cli),
+                "--",
+                "wait-signal",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=environment,
+        )
+        self.assertEqual(process.stdout.readline(), "ready\n")
+        process.send_signal(signal.SIGTERM)
+        process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 0)
+        self.assertEqual(
+            signal_log.read_text(encoding="utf-8"), str(int(signal.SIGTERM))
+        )
+
+    def test_windows_batch_shims_resolve_to_shell_free_node_vectors(self):
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required for Windows shim resolution")
+
+        prefix = self.temporary / "windows-prefix"
+        native_shim = prefix / "nostos.cmd"
+        native_shim.parent.mkdir(parents=True)
+        native_shim.write_text("@rem never execute through cmd.exe\n", encoding="utf-8")
+        native_launcher = (
+            prefix
+            / "node_modules"
+            / "@nostosdb"
+            / "cli"
+            / "bin"
+            / "nostos.js"
+        )
+        native_launcher.parent.mkdir(parents=True)
+        native_launcher.write_text("// fixture\n", encoding="utf-8")
+        self.assertEqual(
+            native_command(native_shim, windows=True),
+            [str(Path(node).resolve()), str(native_launcher.resolve())],
+        )
+
+        npx_shim = prefix / "npx.cmd"
+        npx_shim.write_text("@rem never execute through cmd.exe\n", encoding="utf-8")
+        npx_cli = prefix / "node_modules" / "npm" / "bin" / "npx-cli.js"
+        npx_cli.parent.mkdir(parents=True)
+        npx_cli.write_text("// fixture\n", encoding="utf-8")
+        self.assertEqual(
+            npx_command(windows=True, located=str(npx_shim)),
+            [str(Path(node).resolve()), str(npx_cli.resolve())],
+        )
+
+    def test_auto_does_not_hide_mismatch_and_reports_npx_failures(self):
+        project = self.temporary / "auto-errors"
+        tools = self.temporary / "auto-tools"
+        tools.mkdir()
+        npx_log = self.temporary / "error-npx.log"
+        wrong = tools / "nostos"
+        wrong.write_text(
+            "#!{}\nprint('nostos 9.9.9')\n".format(sys.executable),
+            encoding="utf-8",
+        )
+        wrong.chmod(0o755)
+        fake_npx = tools / "npx"
+        fake_npx.write_text(
+            "#!{}\nfrom pathlib import Path\nimport os, sys\n"
+            "Path(os.environ['NPX_LOG']).write_text('called')\n"
+            "print('offline', file=sys.stderr)\nsys.exit(8)\n".format(sys.executable),
+            encoding="utf-8",
+        )
+        fake_npx.chmod(0o755)
+        initialized = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostos_project.py",
+            "init",
+            "--project",
+            project,
+            "--layout",
+            "single",
+            "--core-provider",
+            "auto",
+            "--module-id",
+            "11111111-1111-1111-1111-111111111111",
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        environment = os.environ.copy()
+        environment.pop("NOSTOS_BIN", None)
+        environment["PATH"] = str(tools)
+        environment["NPX_LOG"] = str(npx_log)
+        command = [
+            sys.executable,
+            str(ROOT / "scripts" / "nostos_core.py"),
+            "resolve",
+            "--project",
+            str(project),
+        ]
+        mismatch = invoke(*command, env=environment)
+        self.assertEqual(mismatch.returncode, 3)
+        self.assertIn("found 9.9.9", mismatch.stderr)
+        self.assertFalse(npx_log.exists())
+        wrong.unlink()
+        offline = invoke(*command, env=environment)
+        self.assertEqual(offline.returncode, 3)
+        self.assertIn("npm cache or network access", offline.stderr)
+        self.assertTrue(npx_log.is_file())
+        fake_npx.unlink()
+        missing_npx = invoke(*command, env=environment)
+        self.assertEqual(missing_npx.returncode, 3)
+        self.assertIn("cannot locate npx", missing_npx.stderr)
 
     def test_provenance_is_deterministic_and_portable(self):
         source = FIXTURE / "inputs" / "people.md"
@@ -351,6 +684,16 @@ class SkillTests(unittest.TestCase):
         claude_result = invoke(sys.executable, ROOT / "adapters" / "claude" / "install.py", "--project", claude)
         self.assertEqual(codex_result.returncode, 0, codex_result.stderr)
         self.assertEqual(claude_result.returncode, 0, claude_result.stderr)
+        self.assertEqual(json.loads(codex_result.stdout)["skills"], list(SKILLS))
+        self.assertEqual(json.loads(claude_result.stdout)["skills"], list(SKILLS))
+        self.assertEqual(
+            sorted(path.name for path in (codex / ".agents" / "skills").iterdir()),
+            sorted(SKILLS),
+        )
+        self.assertEqual(
+            sorted(path.name for path in (claude / ".claude" / "skills").iterdir()),
+            sorted(SKILLS),
+        )
         self.assertEqual(tree_hashes(codex / ".agents" / "skills"), tree_hashes(claude / ".claude" / "skills"))
         self.assertEqual(tree_hashes(codex / ".agents" / "references"), tree_hashes(claude / ".claude" / "references"))
         self.assertEqual(tree_hashes(codex / ".agents" / "scripts"), tree_hashes(claude / ".claude" / "scripts"))
@@ -415,6 +758,14 @@ class SkillTests(unittest.TestCase):
                 "statistics": {
                     "columns": ["schemas", "nodes", "edges", "adjacency", "properties"],
                     "rows": [[2, 2, 1, 2, 3]],
+                },
+                "unresolved": {
+                    "columns": ["kind", "internal_id", "identity", "state"],
+                    "rows": [],
+                },
+                "warnings": {
+                    "columns": ["module", "code", "message"],
+                    "rows": [],
                 },
             },
         )

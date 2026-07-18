@@ -11,11 +11,7 @@ from typing import List
 
 
 SKILL_NAMES = (
-    "nostos-orchestrator",
-    "nostos-core",
-    "nostos-ingest",
-    "nostos-schema",
-    "nostos-explore",
+    "nostos",
     "nostos-visualize",
 )
 

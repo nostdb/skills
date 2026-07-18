@@ -37,24 +37,25 @@ def execute(adapter_directory: str, args: argparse.Namespace) -> dict:
     output.mkdir(parents=True, exist_ok=False)
     install(output, adapter_directory, "copy", False)
     scripts = output / adapter_directory / "scripts"
-    run(
-        [
-            sys.executable,
-            scripts / "nostos_project.py",
-            "init",
-            "--project",
-            output,
-            "--layout",
-            manifest["layout"],
-            "--core-version",
-            manifest["core_version"],
-            "--core-binary",
-            str(args.binary.resolve()),
-            "--module-id",
-            manifest["module_id"],
-            "--allow-nonempty",
-        ]
-    )
+    initialize = [
+        sys.executable,
+        scripts / "nostos_project.py",
+        "init",
+        "--project",
+        output,
+        "--layout",
+        manifest["layout"],
+        "--core-version",
+        manifest["core_version"],
+        "--core-provider",
+        args.core_provider,
+        "--module-id",
+        manifest["module_id"],
+        "--allow-nonempty",
+    ]
+    if args.binary:
+        initialize.extend(["--core-binary", str(args.binary.resolve())])
+    run(initialize)
     source = output / manifest["source_path"]
     shutil.copyfile(str(fixture / "source.nostos"), str(source))
     formatted = run(
@@ -125,6 +126,40 @@ def execute(adapter_directory: str, args: argparse.Namespace) -> dict:
             ]
         ).decode("utf-8")
     )
+    warnings = json.loads(
+        run(
+            [
+                sys.executable,
+                scripts / "nostos_core.py",
+                "run",
+                "--project",
+                output,
+                "--",
+                "warnings",
+                "--project",
+                output,
+                "--format",
+                "json",
+            ]
+        ).decode("utf-8")
+    )
+    unresolved = json.loads(
+        run(
+            [
+                sys.executable,
+                scripts / "nostos_core.py",
+                "run",
+                "--project",
+                output,
+                "--",
+                "unresolved",
+                "--database",
+                database,
+                "--format",
+                "json",
+            ]
+        ).decode("utf-8")
+    )
     run(
         [
             sys.executable,
@@ -144,6 +179,8 @@ def execute(adapter_directory: str, args: argparse.Namespace) -> dict:
         "inspection": inspection,
         "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "statistics": statistics,
+        "unresolved": unresolved,
+        "warnings": warnings,
     }
 
 
@@ -151,9 +188,14 @@ def main(adapter_directory: str) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--binary", type=Path)
+    parser.add_argument(
+        "--core-provider", choices=("auto", "installed", "npx"), default="installed"
+    )
     args = parser.parse_args()
     try:
+        if args.core_provider == "installed" and args.binary is None:
+            raise FixtureError("installed fixture provider requires --binary")
         print(json.dumps(execute(adapter_directory, args), sort_keys=True, separators=(",", ":")))
         return 0
     except (FixtureError, OSError, ValueError, KeyError) as error:

@@ -51,7 +51,7 @@ def frontmatter(path: Path) -> Dict[str, str]:
 def verify_skills() -> int:
     discovered = sorted(path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md"))
     if discovered != sorted(SKILL_NAMES):
-        raise VerificationError("canonical Skill set does not match the six registered names")
+        raise VerificationError("canonical Skill set does not match the two registered names")
     for name in SKILL_NAMES:
         path = ROOT / "skills" / name / "SKILL.md"
         values = frontmatter(path)

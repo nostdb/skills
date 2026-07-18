@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 SECTION_RE = re.compile(r"^\s*\[([^]]+)]\s*(?:#.*)?$")
 KEY_RE = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=\s*(.*?)\s*(?:#.*)?$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
+CORE_PROVIDERS = ("auto", "installed", "npx")
 
 
 class ConfigError(ValueError):
@@ -74,6 +75,16 @@ def validate_core_version(version: str) -> str:
     if not VERSION_RE.fullmatch(version):
         raise ConfigError("skills.core_version is not a valid pinned version: {}".format(version))
     return version
+
+
+def validate_core_provider(provider: str) -> str:
+    if provider not in CORE_PROVIDERS:
+        raise ConfigError(
+            "skills.core_provider must be one of: {}".format(
+                ", ".join(CORE_PROVIDERS)
+            )
+        )
+    return provider
 
 
 def validate_database_path(value: str) -> str:
