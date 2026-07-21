@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install canonical Skills and shared support into one agent configuration root."""
+"""Install self-contained canonical Skills into one agent configuration root."""
 
 import argparse
 import json
@@ -33,16 +33,6 @@ def install(project: Path, adapter_directory: str, mode: str, force: bool) -> di
         (repository_root() / "skills" / name, root / "skills" / name, True)
         for name in SKILL_NAMES
     ]
-    destinations.extend(
-        (source, root / "references" / source.name, False)
-        for source in sorted((repository_root() / "references").iterdir())
-        if source.is_file()
-    )
-    destinations.extend(
-        (source, root / "scripts" / source.name, False)
-        for source in sorted((repository_root() / "scripts").iterdir())
-        if source.is_file() and source.suffix in {".py", ".md"}
-    )
     existing = [
         destination
         for _, destination, _ in destinations

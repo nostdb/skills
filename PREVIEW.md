@@ -1,9 +1,10 @@
 # Skills preview status
 
-The two portable Skills (`nostos` and `nostos-visualize`) and two installation adapters are Apache-2.0 evaluation workflows, not a supported package.
+The two independently installable Skills (`nostos` and `nostos-visualize`) are Apache-2.0 evaluation workflows, not a supported package. They are downloaded from `nostosdb/skills` with the skills.sh-compatible `npx skills add` command; NostosDB does not require public Codex or Claude installation adapters.
 
 - Workflows can propose and canonically rewrite `.nostos`; they never write `.ndb`.
 - Deterministic parsing, validation, sync, and query behavior belongs to the exact compatible CLI/Core version pinned by the project.
 - External source content remains untrusted input; provenance is evidence, not truth or authorization.
-- Installers refuse existing targets unless force is explicit; backups and review remain the operator's responsibility.
-- No registry distribution, hosted agent, model guarantee, or external contribution intake exists.
+- Each skills.sh download contains its own references and helpers and works without the repository checkout, sibling support directories, or the other Skill. Repository tests exercise isolated project/global roots and unrelated working directories.
+- The official `@nostosdb/cli` runtime package is not published in this preview, so zero-install CLI fallback remains a verified implementation target rather than a currently available package.
+- No CLI registry distribution, hosted agent, model guarantee, or external contribution intake exists.

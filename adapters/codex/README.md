@@ -6,4 +6,4 @@ This adapter selects the Codex project discovery directory and delegates install
 python3 adapters/codex/install.py --project /path/to/project
 ```
 
-The default copy mode installs exactly `nostos` and `nostos-visualize` under `.agents/skills` and shared support under `.agents/references` and `.agents/scripts`. Existing paths are refused unless `--force` is explicit. `--mode symlink` is available for local development.
+This adapter remains only for repository compatibility tests; public installation uses `npx skills add nostosdb/skills --skill NAME`. The default copy mode installs exactly the two self-contained Skill directories under `.agents/skills` and creates no sibling support directories. Existing Skill paths are refused unless `--force` is explicit. `--mode symlink` is available for local development.

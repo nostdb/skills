@@ -695,17 +695,20 @@ class SkillTests(unittest.TestCase):
             sorted(SKILLS),
         )
         self.assertEqual(tree_hashes(codex / ".agents" / "skills"), tree_hashes(claude / ".claude" / "skills"))
-        self.assertEqual(tree_hashes(codex / ".agents" / "references"), tree_hashes(claude / ".claude" / "references"))
-        self.assertEqual(tree_hashes(codex / ".agents" / "scripts"), tree_hashes(claude / ".claude" / "scripts"))
+        self.assertFalse((codex / ".agents" / "references").exists())
+        self.assertFalse((codex / ".agents" / "scripts").exists())
+        self.assertFalse((claude / ".claude" / "references").exists())
+        self.assertFalse((claude / ".claude" / "scripts").exists())
         for name in SKILLS:
             self.assertEqual(
-                (ROOT / "skills" / name / "SKILL.md").read_bytes(),
-                (codex / ".agents" / "skills" / name / "SKILL.md").read_bytes(),
+                tree_hashes(ROOT / "skills" / name),
+                tree_hashes(codex / ".agents" / "skills" / name),
             )
         refused = invoke(sys.executable, ROOT / "adapters" / "codex" / "install.py", "--project", codex)
         self.assertEqual(refused.returncode, 2)
         self.assertIn("refusing to replace", refused.stderr)
-        unrelated = codex / ".agents" / "references" / "unrelated.md"
+        unrelated = codex / ".agents" / "unrelated.md"
+        unrelated.parent.mkdir(parents=True, exist_ok=True)
         unrelated.write_text("keep\n", encoding="utf-8")
         forced = invoke(
             sys.executable,
@@ -717,11 +720,115 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(forced.returncode, 0, forced.stderr)
         self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep\n")
 
+    def test_each_downloaded_skill_runs_without_repository_relative_support(self):
+        installed = {}
+        installation_roots = {
+            "nostos": self.temporary / "project-scope" / ".agents" / "skills",
+            "nostos-visualize": self.temporary / "global-scope" / ".codex" / "skills",
+        }
+        for name in SKILLS:
+            destination = installation_roots[name] / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(ROOT / "skills" / name, destination)
+            installed[name] = destination
+
+        unrelated_cwd = self.temporary / "unrelated-working-directory"
+        unrelated_cwd.mkdir()
+        native = self.temporary / "nostos-native"
+        native.write_text(
+            "#!{}\nimport sys\n"
+            "print('nostos 0.1.0') if sys.argv[1:] == ['--version'] else sys.exit(9)\n"
+            .format(sys.executable),
+            encoding="utf-8",
+        )
+        native.chmod(0o755)
+        project = self.temporary / "standalone-project"
+        initialized = invoke(
+            sys.executable,
+            installed["nostos"] / "scripts" / "nostos_project.py",
+            "init",
+            "--project",
+            project,
+            "--layout",
+            "single",
+            "--core-provider",
+            "installed",
+            "--core-binary",
+            native,
+            cwd=unrelated_cwd,
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        for name in SKILLS:
+            resolved = invoke(
+                sys.executable,
+                installed[name] / "scripts" / "nostos_core.py",
+                "resolve",
+                "--project",
+                project,
+                "--json",
+                cwd=unrelated_cwd,
+            )
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            self.assertEqual(json.loads(resolved.stdout)["provider"], "native")
+
+        npx_project = self.temporary / "standalone-npx-project"
+        initialized = invoke(
+            sys.executable,
+            installed["nostos"] / "scripts" / "nostos_project.py",
+            "init",
+            "--project",
+            npx_project,
+            "--layout",
+            "single",
+            "--core-provider",
+            "auto",
+            cwd=unrelated_cwd,
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        tools = self.temporary / "standalone-tools"
+        tools.mkdir()
+        npx_log = self.temporary / "standalone-npx.json"
+        fake_npx = tools / "npx"
+        fake_npx.write_text(
+            "#!{}\nimport json, os, sys\n"
+            "open(os.environ['NPX_LOG'], 'w').write(json.dumps(sys.argv[1:]))\n"
+            "expected = ['--yes', '--package=@nostosdb/cli@0.1.0', 'nostos', '--version']\n"
+            "print('nostos 0.1.0') if sys.argv[1:] == expected else sys.exit(97)\n"
+            .format(sys.executable),
+            encoding="utf-8",
+        )
+        fake_npx.chmod(0o755)
+        environment = os.environ.copy()
+        environment.pop("NOSTOS_BIN", None)
+        environment["PATH"] = str(tools)
+        environment["NPX_LOG"] = str(npx_log)
+        resolved = invoke(
+            sys.executable,
+            installed["nostos-visualize"] / "scripts" / "nostos_core.py",
+            "resolve",
+            "--project",
+            npx_project,
+            "--json",
+            cwd=unrelated_cwd,
+            env=environment,
+        )
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        payload = json.loads(resolved.stdout)
+        self.assertEqual(payload["provider"], "npx")
+        self.assertEqual(
+            payload["command"][1:],
+            ["--yes", "--package=@nostosdb/cli@0.1.0", "nostos"],
+        )
+        self.assertEqual(
+            json.loads(npx_log.read_text(encoding="utf-8")),
+            ["--yes", "--package=@nostosdb/cli@0.1.0", "nostos", "--version"],
+        )
+
     def test_shared_fixture_has_equivalent_source_and_database_semantics(self):
         binary = os.environ.get("NOSTOS_TEST_BIN")
         if binary is None:
             suffix = ".exe" if os.name == "nt" else ""
-            candidate = ROOT.parent / "nostos-cli" / "target" / "debug" / ("nostos" + suffix)
+            candidate = ROOT.parent / "nostosdb-cli" / "target" / "debug" / ("nostos" + suffix)
             if candidate.is_file():
                 binary = str(candidate)
         if binary is None:

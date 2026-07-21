@@ -9,12 +9,36 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 
-from install_adapter import SKILL_NAMES
-
-
 ROOT = Path(__file__).resolve().parents[1]
 LINK_RE = re.compile(r"\[[^]]+]\(([^)]+)\)")
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SKILL_NAMES = (
+    "nostos",
+    "nostos-visualize",
+)
+RUNTIME_FILES = {
+    "nostos": {
+        "references/core-providers.md",
+        "references/ingest.md",
+        "references/project.md",
+        "references/provenance.md",
+        "references/query.md",
+        "references/safety.md",
+        "references/schema.md",
+        "scripts/nostos_config.py",
+        "scripts/nostos_core.py",
+        "scripts/nostos_project.py",
+        "scripts/nostos_provenance.py",
+        "scripts/nostos_source.py",
+    },
+    "nostos-visualize": {
+        "references/core-providers.md",
+        "references/query.md",
+        "references/safety.md",
+        "scripts/nostos_config.py",
+        "scripts/nostos_core.py",
+    },
+}
 
 
 class VerificationError(RuntimeError):
@@ -64,6 +88,14 @@ def verify_skills() -> int:
             raise VerificationError("{} is not a concise implemented Skill".format(path))
         if any(marker in text for marker in (".agents/", ".claude/", "Codex adapter", "Claude adapter")):
             raise VerificationError("platform-specific behavior leaked into {}".format(path))
+        skill_root = path.parent
+        runtime = {
+            item.relative_to(skill_root).as_posix()
+            for item in skill_root.rglob("*")
+            if item.is_file() and item.name != "SKILL.md" and "__pycache__" not in item.parts
+        }
+        if runtime != RUNTIME_FILES[name]:
+            raise VerificationError("{} does not contain its exact standalone runtime".format(path))
     return len(discovered)
 
 
@@ -80,6 +112,19 @@ def verify_links() -> int:
             resolved = (path.parent / target).resolve()
             if not resolved.exists():
                 raise VerificationError("broken link in {}: {}".format(path, target))
+            for name in SKILL_NAMES:
+                skill_root = (ROOT / "skills" / name).resolve()
+                try:
+                    path.resolve().relative_to(skill_root)
+                except ValueError:
+                    continue
+                try:
+                    resolved.relative_to(skill_root)
+                except ValueError as error:
+                    raise VerificationError(
+                        "standalone Skill link escapes {}: {}".format(skill_root, target)
+                    ) from error
+                break
             count += 1
     return count
 
@@ -88,7 +133,12 @@ def verify_python_safety() -> int:
     count = 0
     forbidden_imports = {"sqlite3", "rusqlite", "nostos_parser", "nostos_storage"}
     write_calls = {"open", "write_bytes", "write_text", "copy", "copyfile", "replace", "rename"}
-    for path in sorted(list((ROOT / "scripts").glob("*.py")) + list((ROOT / "adapters").glob("*/*.py"))):
+    python_files = (
+        list((ROOT / "scripts").glob("*.py"))
+        + list((ROOT / "skills").glob("*/scripts/*.py"))
+        + list((ROOT / "adapters").glob("*/*.py"))
+    )
+    for path in sorted(python_files):
         if path.resolve() == Path(__file__).resolve():
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -107,6 +157,51 @@ def verify_python_safety() -> int:
             if ".ndb" in line and any(token in line for token in ("write_bytes", "write_text", "copyfile", "sqlite")):
                 raise VerificationError("{} contains a direct .ndb write".format(path))
         count += 1
+    return count
+
+
+def verify_runtime_copies() -> int:
+    canonical = {
+        "nostos": {
+            **{
+                "references/" + name: ROOT / "references" / name
+                for name in (
+                    "core-providers.md",
+                    "ingest.md",
+                    "project.md",
+                    "provenance.md",
+                    "query.md",
+                    "safety.md",
+                    "schema.md",
+                )
+            },
+            **{
+                "scripts/" + name: ROOT / "scripts" / name
+                for name in (
+                    "nostos_config.py",
+                    "nostos_core.py",
+                    "nostos_project.py",
+                    "nostos_provenance.py",
+                    "nostos_source.py",
+                )
+            },
+        },
+        "nostos-visualize": {
+            "references/core-providers.md": ROOT / "references" / "core-providers.md",
+            "references/query.md": ROOT / "references" / "query.md",
+            "scripts/nostos_config.py": ROOT / "scripts" / "nostos_config.py",
+            "scripts/nostos_core.py": ROOT / "scripts" / "nostos_core.py",
+        },
+    }
+    count = 0
+    for skill, files in canonical.items():
+        for relative, source in files.items():
+            installed = ROOT / "skills" / skill / relative
+            if installed.read_bytes() != source.read_bytes():
+                raise VerificationError(
+                    "standalone runtime copy differs from canonical source: {}".format(installed)
+                )
+            count += 1
     return count
 
 
@@ -154,10 +249,11 @@ def main() -> int:
         skills = verify_skills()
         links = verify_links()
         scripts = verify_python_safety()
+        runtime = verify_runtime_copies()
         fixtures = verify_fixture()
         print(
-            "skills: {}; scripts: {}; links: {}; fixtures: {}; format files: {}".format(
-                skills, scripts, links, fixtures, formatted
+            "skills: {}; scripts: {}; runtime copies: {}; links: {}; fixtures: {}; format files: {}".format(
+                skills, scripts, runtime, links, fixtures, formatted
             )
         )
         return 0

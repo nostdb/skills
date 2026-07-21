@@ -5,18 +5,18 @@ description: Create, model, populate, inspect, query, validate, and maintain Nos
 
 # Work with NostosDB
 
-Read [safety.md](../../references/safety.md), [project.md](../../references/project.md), and [core-providers.md](../../references/core-providers.md). Read only the additional task reference needed:
+Read [safety.md](references/safety.md), [project.md](references/project.md), and [core-providers.md](references/core-providers.md). Read only the additional task reference needed:
 
-- Schema or Constraint work: [schema.md](../../references/schema.md)
-- Document or code ingestion: [ingest.md](../../references/ingest.md) and [provenance.md](../../references/provenance.md)
-- Graph inspection or exploration: [query.md](../../references/query.md)
+- Schema or Constraint work: [schema.md](references/schema.md)
+- Document or code ingestion: [ingest.md](references/ingest.md) and [provenance.md](references/provenance.md)
+- Graph inspection or exploration: [query.md](references/query.md)
 
 1. Require the intended project directory. Inspect its files, `nostos.toml`, `.nostos` modules, imports, and Git changes; preserve unrelated work.
 2. Initialize a new project only after selecting `centralized`, `colocated`, or `single` from project evidence. Never silently change an existing layout or initialize an unrelated nonempty directory.
 3. Resolve the exact configured CLI before semantic work:
 
 ```bash
-python3 <skill-root>/../../scripts/nostos_core.py resolve \
+python3 <skill-root>/scripts/nostos_core.py resolve \
   --project <project> --json
 ```
 
@@ -24,13 +24,13 @@ python3 <skill-root>/../../scripts/nostos_core.py resolve \
 5. After a source change, invoke the CLI only through the same wrapper to format, synchronize, and diagnose:
 
 ```bash
-python3 <skill-root>/../../scripts/nostos_core.py run --project <project> -- \
+python3 <skill-root>/scripts/nostos_core.py run --project <project> -- \
   format --file <owner.nostos> --project <project> --check
-python3 <skill-root>/../../scripts/nostos_core.py run --project <project> -- \
+python3 <skill-root>/scripts/nostos_core.py run --project <project> -- \
   sync --project <project> --database <project>/<skills.database> --format json
-python3 <skill-root>/../../scripts/nostos_core.py run --project <project> -- \
+python3 <skill-root>/scripts/nostos_core.py run --project <project> -- \
   check --database <project>/<skills.database> --format json
-python3 <skill-root>/../../scripts/nostos_core.py run --project <project> -- \
+python3 <skill-root>/scripts/nostos_core.py run --project <project> -- \
   doctor --project <project> --database <project>/<skills.database> --format json
 ```
 

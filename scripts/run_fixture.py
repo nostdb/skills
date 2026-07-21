@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise one shared fixture through an installed adapter and the public CLI."""
+"""Exercise one shared fixture through an installed Skill and the public CLI."""
 
 import argparse
 import hashlib
@@ -36,7 +36,7 @@ def execute(adapter_directory: str, args: argparse.Namespace) -> dict:
     manifest = json.loads((fixture / "fixture.json").read_text(encoding="utf-8"))
     output.mkdir(parents=True, exist_ok=False)
     install(output, adapter_directory, "copy", False)
-    scripts = output / adapter_directory / "scripts"
+    scripts = output / adapter_directory / "skills" / "nostos" / "scripts"
     initialize = [
         sys.executable,
         scripts / "nostos_project.py",
