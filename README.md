@@ -8,7 +8,7 @@ Start with the Root [user guide](https://github.com/nostosdb/nostosdb/blob/main/
 
 Two canonical Agent Skills provide the public surface:
 
-- `nostos` is the default entry point for project setup, deterministic Core commands, Schema evolution, ingestion, and exploration.
+- `nostos` is the default entry point for `help`, guarded project `init`, deterministic Core commands, Schema evolution, ingestion, and exploration.
 - `nostos-visualize` is the separate graph-representation workflow for reviewable diagrams and visualization datasets.
 
 Users do not choose separate Core, Schema, ingestion, exploration, or orchestration Skills. The accepted Stage 13 contract requires each Skill to contain its own references and deterministic helpers so either one can be installed and operated independently.
@@ -27,6 +27,8 @@ skills.sh installs each selected Skill as a complete runtime unit, including its
 Install only `nostos` when visualization is not needed, or only `nostos-visualize` for an existing read-only graph workflow. The installer selects Codex, Claude, another supported agent, and project/global scope interactively; its `--agent`, `--global`, and `--yes` options are available for non-interactive use. NostosDB does not require a custom agent adapter.
 
 The downloaded Skill directory does not require this repository checkout, a sibling `references/` or `scripts/` directory, the other NostosDB Skill, a particular agent-specific parent path, or a particular current working directory.
+
+After the agent activates the Skill, `nostos help` returns the supported action summary without requiring a project, and `nostos init` collects the project/layout inputs and invokes the bundled guarded initializer. These are Agent Skill actions, not additional subcommands of the native `nostos` CLI.
 
 ## CLI provider
 

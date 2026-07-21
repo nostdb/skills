@@ -9,7 +9,7 @@
 Initialize once:
 
 ```bash
-python3 <skill-root>/scripts/nostos_project.py init \
+python3 <skill-root>/scripts/nostos_skill.py init \
   --project <project> --layout centralized --core-version 0.1.0 \
   --core-provider auto
 ```

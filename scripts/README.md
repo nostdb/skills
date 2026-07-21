@@ -1,6 +1,7 @@
 # Deterministic helpers
 
 - `nostos_project.py`: initialize a layout and persist layout/Core selection in `nostos.toml`
+- `nostos_skill.py`: expose deterministic `help` and guarded `init` actions for the public `nostos` Skill
 - `nostos_core.py`: resolve an exactly pinned native or npx CLI provider and invoke it without a shell
 - `nostos_provenance.py`: hash one document/code input and emit a portable provenance comment
 - `nostos_source.py`: hash-guard installation of one complete canonical `.nostos` file

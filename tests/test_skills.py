@@ -734,6 +734,20 @@ class SkillTests(unittest.TestCase):
 
         unrelated_cwd = self.temporary / "unrelated-working-directory"
         unrelated_cwd.mkdir()
+        skill_entry = installed["nostos"] / "scripts" / "nostos_skill.py"
+        helped = invoke(
+            sys.executable,
+            skill_entry,
+            "help",
+            cwd=unrelated_cwd,
+        )
+        self.assertEqual(helped.returncode, 0, helped.stderr)
+        self.assertIn("Usage:\n  nostos help\n  nostos init", helped.stdout)
+        self.assertIn("--core-provider auto", helped.stdout)
+        self.assertFalse((unrelated_cwd / "nostos.toml").exists())
+        implicit_help = invoke(sys.executable, skill_entry, cwd=unrelated_cwd)
+        self.assertEqual(implicit_help.stdout, helped.stdout)
+
         native = self.temporary / "nostos-native"
         native.write_text(
             "#!{}\nimport sys\n"
@@ -745,7 +759,7 @@ class SkillTests(unittest.TestCase):
         project = self.temporary / "standalone-project"
         initialized = invoke(
             sys.executable,
-            installed["nostos"] / "scripts" / "nostos_project.py",
+            skill_entry,
             "init",
             "--project",
             project,
@@ -774,7 +788,7 @@ class SkillTests(unittest.TestCase):
         npx_project = self.temporary / "standalone-npx-project"
         initialized = invoke(
             sys.executable,
-            installed["nostos"] / "scripts" / "nostos_project.py",
+            skill_entry,
             "init",
             "--project",
             npx_project,

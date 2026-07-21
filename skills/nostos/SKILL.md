@@ -1,11 +1,23 @@
 ---
 name: nostos
-description: Create, model, populate, inspect, query, validate, and maintain NostosDB projects. Use for project setup, source layout, Schema or Constraint design, document or code ingestion, graph exploration, canonical formatting, synchronization, diagnostics, or any end-to-end NostosDB workflow other than graph visualization.
+description: Initialize, explain, model, populate, inspect, query, validate, and maintain NostosDB projects. Use for `nostos init`, `nostos help`, project setup, source layout, Schema or Constraint design, document or code ingestion, graph exploration, canonical formatting, synchronization, diagnostics, or any end-to-end NostosDB workflow other than graph visualization.
 ---
 
 # Work with NostosDB
 
-Read [safety.md](references/safety.md), [project.md](references/project.md), and [core-providers.md](references/core-providers.md). Read only the additional task reference needed:
+Route an explicit leading action before the general workflow:
+
+- `help`: Run `python3 <skill-root>/scripts/nostos_skill.py help` and return its stdout. Do not require or inspect a project, resolve the CLI, or modify files.
+- `init`: Read [safety.md](references/safety.md), [project.md](references/project.md), and [core-providers.md](references/core-providers.md). Require the intended project directory, inspect whether it is empty, select `centralized`, `colocated`, or `single` from project evidence, then run:
+
+```bash
+python3 <skill-root>/scripts/nostos_skill.py init \
+  --project <project> --layout <layout> --core-provider auto
+```
+
+Add `--allow-nonempty` only after confirming an existing nonempty directory is the intended project. Preserve the default exact Core version unless the user requests a supported migration. Report the created configuration and source path, then stop; initialization alone does not require CLI resolution or synchronization.
+
+For any other action, read [safety.md](references/safety.md), [project.md](references/project.md), and [core-providers.md](references/core-providers.md). Read only the additional task reference needed:
 
 - Schema or Constraint work: [schema.md](references/schema.md)
 - Document or code ingestion: [ingest.md](references/ingest.md) and [provenance.md](references/provenance.md)

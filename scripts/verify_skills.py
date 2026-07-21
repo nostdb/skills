@@ -29,6 +29,7 @@ RUNTIME_FILES = {
         "scripts/nostos_core.py",
         "scripts/nostos_project.py",
         "scripts/nostos_provenance.py",
+        "scripts/nostos_skill.py",
         "scripts/nostos_source.py",
     },
     "nostos-visualize": {
@@ -182,6 +183,7 @@ def verify_runtime_copies() -> int:
                     "nostos_core.py",
                     "nostos_project.py",
                     "nostos_provenance.py",
+                    "nostos_skill.py",
                     "nostos_source.py",
                 )
             },
