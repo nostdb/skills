@@ -10,6 +10,7 @@ import socket
 import sys
 import tempfile
 from pathlib import Path
+from typing import Callable, Optional
 
 
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -35,6 +36,8 @@ def digest(data: bytes) -> str:
 
 
 def temporary_bytes(parent: Path, prefix: str, data: bytes, mode: int) -> Path:
+    """Create and durably fill one exclusive same-directory temporary file."""
+
     descriptor, temporary = tempfile.mkstemp(prefix=prefix, dir=str(parent))
     path = Path(temporary)
     try:
@@ -49,7 +52,12 @@ def temporary_bytes(parent: Path, prefix: str, data: bytes, mode: int) -> Path:
         raise
 
 
-def install(target: Path, candidate: Path, expected: str) -> dict:
+def install(
+    target: Path,
+    candidate: Path,
+    expected: str,
+    _before_replace: Optional[Callable[[], None]] = None,
+) -> dict:
     target = target.absolute()
     candidate = candidate.resolve()
     if not DIGEST_RE.fullmatch(expected):
@@ -87,26 +95,55 @@ def install(target: Path, candidate: Path, expected: str) -> dict:
                 raise SourceError("source conflict: {} changed before installation".format(target))
             mode = original_stat.st_mode & 0o777
             temporary_path = temporary_bytes(target.parent, ".nostos-source-", replacement, mode)
-            current_stat = target.stat()
-            original_file.seek(0)
-            before_replace = original_file.read()
-            if not os.path.samestat(original_stat, current_stat) or digest(before_replace) != expected:
-                raise SourceError("source conflict: {} changed during installation".format(target))
-            os.replace(str(temporary_path), str(target))
-            temporary_path = None
-            original_file.seek(0)
-            raced_content = original_file.read()
-            if digest(raced_content) != expected:
-                if digest(read_source(target)) == digest(replacement):
-                    restore = temporary_bytes(target.parent, ".nostos-restore-", raced_content, mode)
-                    try:
-                        os.replace(str(restore), str(target))
-                    finally:
-                        restore.unlink(missing_ok=True)
-                raise SourceError(
-                    "source conflict: {} changed during atomic replacement; external content was restored"
-                    .format(target)
-                )
+            with target.open("rb") as checked_file:
+                checked_stat = os.fstat(checked_file.fileno())
+                checked_content = checked_file.read()
+                checked_path_stat = target.stat()
+                if (
+                    target.is_symlink()
+                    or not os.path.samestat(original_stat, checked_stat)
+                    or not os.path.samestat(checked_stat, checked_path_stat)
+                    or digest(checked_content) != expected
+                ):
+                    raise SourceError(
+                        "source conflict: {} changed during installation".format(target)
+                    )
+            if _before_replace is not None:
+                _before_replace()
+            # Reopen, hash, and bind the path to the descriptor immediately before
+            # the atomic namespace replacement. This keeps the unavoidable
+            # portable stat-to-replace interval independent of file size.
+            with target.open("rb") as replace_file:
+                replace_stat = os.fstat(replace_file.fileno())
+                before_replace = replace_file.read()
+                replace_path_stat = target.stat()
+                if (
+                    target.is_symlink()
+                    or not os.path.samestat(original_stat, replace_stat)
+                    or not os.path.samestat(replace_stat, replace_path_stat)
+                    or digest(before_replace) != expected
+                ):
+                    raise SourceError(
+                        "source conflict: {} changed immediately before replacement"
+                        .format(target)
+                    )
+                os.replace(str(temporary_path), str(target))
+                temporary_path = None
+                replace_file.seek(0)
+                raced_content = replace_file.read()
+                if digest(raced_content) != expected:
+                    if digest(read_source(target)) == digest(replacement):
+                        restore = temporary_bytes(
+                            target.parent, ".nostos-restore-", raced_content, mode
+                        )
+                        try:
+                            os.replace(str(restore), str(target))
+                        finally:
+                            restore.unlink(missing_ok=True)
+                    raise SourceError(
+                        "source conflict: {} changed during atomic replacement; external content was restored"
+                        .format(target)
+                    )
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)

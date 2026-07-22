@@ -8,12 +8,20 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "portable"
 sys.path.insert(0, str(ROOT / "scripts"))
+import install_adapter as adapter_module  # noqa: E402
+from install_adapter import install as adapter_install  # noqa: E402
 from nostos_core import native_command, npx_command  # noqa: E402
+from nostos_source import (  # noqa: E402
+    SourceError,
+    digest as source_digest,
+    install as source_install,
+)
 
 
 SKILLS = (
@@ -166,6 +174,8 @@ class SkillTests(unittest.TestCase):
             "resolve",
             "--project",
             project,
+            "--binary",
+            fake,
         )
         self.assertEqual(mismatch.returncode, 3)
         self.assertIn("Core version mismatch: expected 0.0.1", mismatch.stderr)
@@ -187,6 +197,8 @@ class SkillTests(unittest.TestCase):
             "resolve",
             "--project",
             project,
+            "--binary",
+            fake,
         )
         self.assertEqual(matched.returncode, 0, matched.stderr)
         self.assertEqual(Path(matched.stdout.strip()), fake.resolve())
@@ -196,15 +208,17 @@ class SkillTests(unittest.TestCase):
             "resolve",
             "--project",
             project,
+            "--binary",
+            fake,
             "--json",
         )
         self.assertEqual(json.loads(details.stdout)["database"], "graph.ndb")
         self.assertEqual(json.loads(details.stdout)["provider"], "native")
 
-    def test_native_provider_priority_and_installed_only_policy(self):
+    def test_native_provider_trust_boundary_and_installed_only_policy(self):
         project = self.temporary / "providers"
         binaries = {}
-        for name in ("explicit", "environment", "configured", "path"):
+        for name in ("explicit", "environment", "path"):
             binary = self.temporary / ("nostos-" + name)
             binary.write_text(
                 "#!{}\nimport sys\nprint('nostos 0.0.1')\n".format(sys.executable),
@@ -212,6 +226,17 @@ class SkillTests(unittest.TestCase):
             )
             binary.chmod(0o755)
             binaries[name] = binary
+        project_binary_log = self.temporary / "project-binary-ran"
+        project_binary = self.temporary / "project-controlled-nostos"
+        project_binary.write_text(
+            "#!{}\nfrom pathlib import Path\n"
+            "Path({!r}).write_text('executed')\n"
+            "print('nostos 0.0.1')\n".format(
+                sys.executable, str(project_binary_log)
+            ),
+            encoding="utf-8",
+        )
+        project_binary.chmod(0o755)
         initialized = invoke(
             sys.executable,
             ROOT / "scripts" / "nostos_project.py",
@@ -223,11 +248,15 @@ class SkillTests(unittest.TestCase):
             "--core-provider",
             "installed",
             "--core-binary",
-            binaries["configured"],
+            project_binary,
             "--module-id",
             "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        self.assertIn(
+            'core_binary = "{}"'.format(project_binary),
+            (project / "nostos.toml").read_text(encoding="utf-8"),
+        )
         path_directory = self.temporary / "path-bin"
         path_directory.mkdir()
         shutil.copy2(binaries["path"], path_directory / "nostos")
@@ -248,17 +277,13 @@ class SkillTests(unittest.TestCase):
             Path(from_environment.stdout.strip()), binaries["environment"].resolve()
         )
         environment.pop("NOSTOS_BIN")
-        configured = invoke(*command, env=environment)
-        self.assertEqual(Path(configured.stdout.strip()), binaries["configured"].resolve())
-        config_path = project / "nostos.toml"
-        config_path.write_text(
-            config_path.read_text(encoding="utf-8").replace(
-                'core_binary = "{}"\n'.format(binaries["configured"]), ""
-            ),
-            encoding="utf-8",
-        )
         from_path = invoke(*command, env=environment)
-        self.assertEqual(Path(from_path.stdout.strip()), (path_directory / "nostos").resolve())
+        self.assertEqual(from_path.returncode, 0, from_path.stderr)
+        self.assertEqual(
+            Path(from_path.stdout.strip()), (path_directory / "nostos").resolve()
+        )
+        self.assertIn("ignoring untrusted skills.core_binary metadata", from_path.stderr)
+        self.assertFalse(project_binary_log.exists())
 
         npx_log = self.temporary / "npx.log"
         fake_npx = path_directory / "npx"
@@ -272,7 +297,17 @@ class SkillTests(unittest.TestCase):
         missing = invoke(*command, env=environment)
         self.assertEqual(missing.returncode, 3)
         self.assertIn("cannot locate nostos 0.0.1", missing.stderr)
+        self.assertIn("skills.core_binary is metadata only", missing.stderr)
+        self.assertFalse(project_binary_log.exists())
         self.assertFalse(npx_log.exists())
+        authorized = invoke(
+            *command, "--binary", project_binary, env=environment
+        )
+        self.assertEqual(authorized.returncode, 0, authorized.stderr)
+        self.assertEqual(Path(authorized.stdout.strip()), project_binary.resolve())
+        self.assertEqual(project_binary_log.read_text(encoding="utf-8"), "executed")
+        project_binary_log.unlink()
+        config_path = project / "nostos.toml"
         config_path.write_text(
             config_path.read_text(encoding="utf-8").replace(
                 'core_provider = "installed"\n', ""
@@ -282,6 +317,7 @@ class SkillTests(unittest.TestCase):
         legacy_missing = invoke(*command, env=environment)
         self.assertEqual(legacy_missing.returncode, 3)
         self.assertIn("cannot locate nostos 0.0.1", legacy_missing.stderr)
+        self.assertFalse(project_binary_log.exists())
         self.assertFalse(npx_log.exists())
 
     def test_npx_provider_is_pinned_and_preserves_process_behavior(self):
@@ -675,6 +711,29 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(installed.returncode, 0, installed.stderr)
         self.assertEqual(target.read_text(encoding="utf-8"), "node new {}\n")
 
+    def test_source_install_revalidates_path_immediately_before_replace(self):
+        target = self.temporary / "owner.nostos"
+        candidate = self.temporary / "candidate.txt"
+        external = self.temporary / "external.nostos"
+        target.write_text("node original {}\n", encoding="utf-8")
+        candidate.write_text("node candidate {}\n", encoding="utf-8")
+        external.write_text("node external {}\n", encoding="utf-8")
+        expected = source_digest(target.read_bytes())
+
+        def replace_target():
+            os.replace(str(external), str(target))
+
+        with self.assertRaisesRegex(SourceError, "immediately before replacement"):
+            source_install(
+                target,
+                candidate,
+                expected,
+                _before_replace=replace_target,
+            )
+        self.assertEqual(target.read_text(encoding="utf-8"), "node external {}\n")
+        self.assertFalse(target.with_name("." + target.name + ".nostos-lock").exists())
+        self.assertEqual(list(target.parent.glob(".nostos-source-*")), [])
+
     def test_adapters_install_identical_canonical_content(self):
         codex = self.temporary / "codex"
         claude = self.temporary / "claude"
@@ -719,6 +778,81 @@ class SkillTests(unittest.TestCase):
         )
         self.assertEqual(forced.returncode, 0, forced.stderr)
         self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep\n")
+
+    def test_adapter_install_is_staged_and_rejects_symlink_boundaries(self):
+        project = self.temporary / "atomic-adapter"
+        project.mkdir()
+        adapter_install(project, ".agents", "copy", False)
+        markers = []
+        for name in SKILLS:
+            marker = project / ".agents" / "skills" / name / "retained.marker"
+            marker.write_text("retain {}\n".format(name), encoding="utf-8")
+            markers.append(marker)
+
+        def fail_partial_copy(_source, destination, ignore=None):
+            partial = Path(destination)
+            partial.mkdir()
+            (partial / "partial").write_text("incomplete\n", encoding="utf-8")
+            raise OSError("injected copy failure")
+
+        with mock.patch.object(
+            adapter_module.shutil, "copytree", side_effect=fail_partial_copy
+        ):
+            with self.assertRaisesRegex(OSError, "injected copy failure"):
+                adapter_install(project, ".agents", "copy", True)
+        for name, marker in zip(SKILLS, markers):
+            self.assertEqual(marker.read_text(encoding="utf-8"), "retain {}\n".format(name))
+        self.assertEqual(
+            list((project / ".agents" / "skills").glob(".nostos-install-*")), []
+        )
+
+        escaped_project = self.temporary / "symlink-adapter"
+        escaped_project.mkdir()
+        external = self.temporary / "external-agent-root"
+        external.mkdir()
+        os.symlink(str(external), str(escaped_project / ".agents"), target_is_directory=True)
+        refused = invoke(
+            sys.executable,
+            ROOT / "adapters" / "codex" / "install.py",
+            "--project",
+            escaped_project,
+        )
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("symlink boundary", refused.stderr)
+        self.assertEqual(list(external.iterdir()), [])
+
+    def test_fixture_rejects_escaping_paths_before_creating_output(self):
+        fixture = self.temporary / "unsafe-fixture"
+        fixture.mkdir()
+        (fixture / "source.nostos").write_text("node safe {}\n", encoding="utf-8")
+        (fixture / "fixture.json").write_text(
+            json.dumps(
+                {
+                    "core_version": "0.0.1",
+                    "layout": "single",
+                    "module_id": "11111111-1111-1111-1111-111111111111",
+                    "source_path": "../victim.nostos",
+                }
+            ),
+            encoding="utf-8",
+        )
+        output = self.temporary / "unsafe-output"
+        victim = self.temporary / "victim.nostos"
+        victim.write_text("retain\n", encoding="utf-8")
+        rejected = invoke(
+            sys.executable,
+            ROOT / "adapters" / "codex" / "run_fixture.py",
+            "--fixture",
+            fixture,
+            "--output",
+            output,
+            "--core-provider",
+            "auto",
+        )
+        self.assertEqual(rejected.returncode, 1)
+        self.assertIn("normalized relative .nostos path", rejected.stderr)
+        self.assertFalse(output.exists())
+        self.assertEqual(victim.read_text(encoding="utf-8"), "retain\n")
 
     def test_each_downloaded_skill_runs_without_repository_relative_support(self):
         installed = {}
@@ -772,6 +906,8 @@ class SkillTests(unittest.TestCase):
             cwd=unrelated_cwd,
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        native_environment = os.environ.copy()
+        native_environment["NOSTOS_BIN"] = str(native)
         for name in SKILLS:
             resolved = invoke(
                 sys.executable,
@@ -781,6 +917,7 @@ class SkillTests(unittest.TestCase):
                 project,
                 "--json",
                 cwd=unrelated_cwd,
+                env=native_environment,
             )
             self.assertEqual(resolved.returncode, 0, resolved.stderr)
             self.assertEqual(json.loads(resolved.stdout)["provider"], "native")
@@ -838,6 +975,129 @@ class SkillTests(unittest.TestCase):
             ["--yes", "--package=@nostosdb/cli@0.0.1", "nostos", "--version"],
         )
 
+    def test_visualization_wrapper_enforces_read_only_standalone_database(self):
+        installed = self.temporary / "visualize" / "nostos-visualize"
+        installed.parent.mkdir(parents=True)
+        shutil.copytree(ROOT / "skills" / "nostos-visualize", installed)
+        wrapper = installed / "scripts" / "nostos_core.py"
+        database = self.temporary / "existing.ndb"
+        database.write_bytes(b"opaque fixture")
+        command_log = self.temporary / "visualize-commands.jsonl"
+        binary = self.temporary / "visualize-nostos"
+        binary.write_text(
+            "#!{}\n"
+            "import json, os, sys\n"
+            "if sys.argv[1:] == ['--version']:\n"
+            "    print('nostos 0.0.1')\n"
+            "else:\n"
+            "    with open(os.environ['VISUALIZE_LOG'], 'a') as output:\n"
+            "        output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "    print('{{\"columns\":[],\"rows\":[]}}')\n".format(sys.executable),
+            encoding="utf-8",
+        )
+        binary.chmod(0o755)
+        environment = os.environ.copy()
+        environment["VISUALIZE_LOG"] = str(command_log)
+        base = [sys.executable, wrapper]
+
+        resolved = invoke(
+            *base,
+            "resolve",
+            "--binary",
+            binary,
+            "--database",
+            database,
+            "--json",
+            env=environment,
+        )
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        payload = json.loads(resolved.stdout)
+        self.assertTrue(payload["read_only"])
+        self.assertEqual(payload["database"], str(database.resolve()))
+        self.assertFalse((database.parent / "nostos.toml").exists())
+
+        safe = invoke(
+            *base,
+            "run",
+            "--binary",
+            binary,
+            "--database",
+            database,
+            "--",
+            "query",
+            "--read-only",
+            "RETURN 'CREATE' AS text",
+            "--format",
+            "json",
+            env=environment,
+        )
+        self.assertEqual(safe.returncode, 0, safe.stderr)
+        forwarded = json.loads(command_log.read_text(encoding="utf-8").splitlines()[-1])
+        self.assertEqual(forwarded[0], "query")
+        self.assertIn(str(database.resolve()), forwarded)
+        self.assertIn("--read-only", forwarded)
+        self.assertNotIn("--project", forwarded)
+
+        previous_log = command_log.read_text(encoding="utf-8")
+        rejected = (
+            ("query", "MATCH (n) RETURN n"),
+            ("query", "--read-only", "--file", "query.cypher"),
+            ("query", "--read-only", "--interactive"),
+            ("query", "--read-only", "MATCH (n) RETURN n", "--server", "localhost"),
+            ("sync",),
+            ("database", "list"),
+            ("query", "--read-only", "MATCH (n) RETURN n", "--project", "."),
+        )
+        for arguments in rejected:
+            result = invoke(
+                *base,
+                "run",
+                "--binary",
+                binary,
+                "--database",
+                database,
+                "--",
+                *arguments,
+                env=environment,
+            )
+            self.assertEqual(result.returncode, 3, (arguments, result.stderr))
+        self.assertEqual(command_log.read_text(encoding="utf-8"), previous_log)
+
+        project = self.temporary / "visualize-project"
+        initialized = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostos_project.py",
+            "init",
+            "--project",
+            project,
+            "--layout",
+            "single",
+            "--core-provider",
+            "installed",
+            "--module-id",
+            "11111111-1111-1111-1111-111111111111",
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        inspected = invoke(
+            *base,
+            "run",
+            "--project",
+            project,
+            "--binary",
+            binary,
+            "--database",
+            database,
+            "--",
+            "inspect",
+            "--format",
+            "json",
+            env=environment,
+        )
+        self.assertEqual(inspected.returncode, 0, inspected.stderr)
+        forwarded = json.loads(command_log.read_text(encoding="utf-8").splitlines()[-1])
+        self.assertEqual(forwarded[0], "inspect")
+        self.assertNotIn("--project", forwarded)
+
     def test_shared_fixture_has_equivalent_source_and_database_semantics(self):
         binary = os.environ.get("NOSTOS_TEST_BIN")
         if binary is None:
@@ -885,7 +1145,7 @@ class SkillTests(unittest.TestCase):
                     "rows": [],
                 },
                 "warnings": {
-                    "columns": ["module", "code", "message"],
+                    "columns": ["module", "range", "code", "severity", "message"],
                     "rows": [],
                 },
             },

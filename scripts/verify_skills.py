@@ -27,6 +27,7 @@ RUNTIME_FILES = {
         "references/schema.md",
         "scripts/nostos_config.py",
         "scripts/nostos_core.py",
+        "scripts/nostos_provider.py",
         "scripts/nostos_project.py",
         "scripts/nostos_provenance.py",
         "scripts/nostos_skill.py",
@@ -38,6 +39,7 @@ RUNTIME_FILES = {
         "references/safety.md",
         "scripts/nostos_config.py",
         "scripts/nostos_core.py",
+        "scripts/nostos_provider.py",
     },
 }
 
@@ -181,6 +183,7 @@ def verify_runtime_copies() -> int:
                 for name in (
                     "nostos_config.py",
                     "nostos_core.py",
+                    "nostos_provider.py",
                     "nostos_project.py",
                     "nostos_provenance.py",
                     "nostos_skill.py",
@@ -190,9 +193,10 @@ def verify_runtime_copies() -> int:
         },
         "nostos-visualize": {
             "references/core-providers.md": ROOT / "references" / "core-providers.md",
-            "references/query.md": ROOT / "references" / "query.md",
+            "references/query.md": ROOT / "references" / "visualize-query.md",
             "scripts/nostos_config.py": ROOT / "scripts" / "nostos_config.py",
-            "scripts/nostos_core.py": ROOT / "scripts" / "nostos_core.py",
+            "scripts/nostos_core.py": ROOT / "scripts" / "nostos_visualize_core.py",
+            "scripts/nostos_provider.py": ROOT / "scripts" / "nostos_provider.py",
         },
     }
     count = 0

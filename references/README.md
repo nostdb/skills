@@ -10,4 +10,4 @@ The general `nostos` Skill and the separate `nostos-visualize` Skill load only t
 - `provenance.md`: deterministic document/code evidence records
 - `query.md`: bounded query and administration rules
 
-The standalone Skill directories contain the runtime copies they need. Repository verification requires those copies to match these canonical development sources, except for the visualization-only safety policy tailored to its read-only scope.
+The standalone Skill directories contain the runtime copies they need. Repository verification requires those copies to match the canonical development sources, with `visualize-query.md`, `nostos_visualize_core.py`, and the visualization-only safety policy tailored to the read-only Skill.

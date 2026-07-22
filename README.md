@@ -30,29 +30,48 @@ The downloaded Skill directory does not require this repository checkout, a sibl
 
 After the agent activates the Skill, `nostos help` returns the supported action summary without requiring a project, and `nostos init` collects the project/layout inputs and invokes the bundled guarded initializer. These are Agent Skill actions, not additional subcommands of the native `nostos` CLI.
 
+## Source-preview quickstart
+
+The CLI packages are not published yet, so the working preview path uses an explicitly authorized source-built binary. From this repository with `nostosdb-cli` and `nostosdb-core` checked out as siblings:
+
+```bash
+cargo build --manifest-path ../nostosdb-cli/Cargo.toml --locked
+export NOSTOS_BIN="$PWD/../nostosdb-cli/target/debug/nostos"
+export NOSTOS_PROJECT="$PWD/../nostos-preview"
+python3 skills/nostos/scripts/nostos_skill.py init \
+  --project "$NOSTOS_PROJECT" --layout centralized --core-provider installed \
+  --core-binary "$NOSTOS_BIN"
+python3 skills/nostos/scripts/nostos_core.py resolve \
+  --project "$NOSTOS_PROJECT" --json
+```
+
+`--core-binary` records the reviewed path as project metadata. Because `nostos.toml` is project-controlled input, that value is never executed automatically; keep `NOSTOS_BIN` set for the agent session or pass `--binary PATH` to each wrapper invocation. Otherwise resolution uses `nostos` from the user's `PATH`.
+
 ## CLI provider
 
-New projects use `core_provider = "auto"`. The Skill first selects an installed `nostos` whose version exactly matches `skills.core_version`; if none exists, it runs the exact `@nostosdb/cli@skills.core_version` package through `npx` without a global CLI installation. Set `core_provider = "installed"` when network fallback must be forbidden, or `core_provider = "npx"` to require the pinned zero-install provider.
+The initializer supports `auto`, `installed`, and `npx` provider policies. Use `installed` for the current source preview. `auto` first selects an explicitly authorized or `PATH`-installed `nostos` whose version exactly matches `skills.core_version`; if none exists, it runs the exact `@nostosdb/cli@skills.core_version` package through `npx`. `installed` forbids that network fallback, while `npx` requires the pinned zero-install provider.
 
 Skill installation and CLI execution are separate uses of `npx`:
 
 - `npx skills add ...` downloads an Agent Skill from this GitHub repository.
 - `npx --package=@nostosdb/cli@VERSION nostos ...` runs the Core-containing CLI selected by the Skill.
 
-The `@nostosdb/cli` package is not published in the current source preview. Until publication, the npx provider fails explicitly and preview evaluation must provide an exactly matching source-built `nostos` binary. It never falls back to `latest` or a version range.
+The `@nostosdb/cli` package is not published in the current source preview. Until publication, `auto` without an installed CLI and the `npx` policy fail explicitly. Preview evaluation must use the installed-provider workflow above with an exactly matching source-built `nostos` binary. The wrapper never falls back to `latest` or a version range.
 
 Skills may write complete canonical `.nostos` files and invoke supported CLI commands. They never parse, generate, patch, or decode `.ndb` directly.
 
 ## Verify
 
 ```bash
+cargo build --manifest-path ../nostosdb-cli/Cargo.toml --locked
 python3 -m py_compile scripts/*.py skills/*/scripts/*.py adapters/*/*.py tests/test_skills.py
-python3 -m unittest discover -s tests -v
+NOSTOS_TEST_BIN="$PWD/../nostosdb-cli/target/debug/nostos" \
+  python3 -m unittest discover -s tests -v
 python3 scripts/verify_skills.py --format-check
 python3 scripts/verify_skills.py
 ```
 
-The end-to-end isolated-install tests use the sibling `nostosdb-cli` development binary or `NOSTOS_TEST_BIN` and compare canonical source hashes, logical database checksums, graph counts, diagnostics, and exit behavior.
+The explicit `NOSTOS_TEST_BIN` assignment makes the real CLI integration mandatory. Without it, the suite uses an already-built sibling development binary when available and otherwise skips that integration. The test compares canonical source hashes, logical database checksums, graph counts, diagnostics, and exit behavior.
 
 ## License
 

@@ -8,12 +8,47 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import List, Optional, Sequence, Union
 
 from install_adapter import install
 
 
 class FixtureError(RuntimeError):
     """A fixture setup or Core invocation failure."""
+
+
+CommandPart = Union[str, Path]
+
+
+def load_manifest(fixture: Path) -> dict:
+    """Validate the complete fixture schema before creating output paths."""
+
+    manifest_path = fixture / "fixture.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise FixtureError("cannot read valid fixture manifest: {}".format(error)) from error
+    required = {"core_version", "layout", "module_id", "source_path"}
+    if not isinstance(manifest, dict) or set(manifest) != required:
+        raise FixtureError("fixture manifest must contain exactly {}".format(sorted(required)))
+    if any(not isinstance(manifest[key], str) for key in required):
+        raise FixtureError("fixture manifest values must be strings")
+    if manifest["layout"] not in {"centralized", "colocated", "single"}:
+        raise FixtureError("fixture manifest layout is invalid")
+    source_path = Path(manifest["source_path"])
+    if (
+        not manifest["source_path"]
+        or "\\" in manifest["source_path"]
+        or source_path.is_absolute()
+        or ".." in source_path.parts
+        or "." in source_path.parts
+        or source_path.suffix != ".nostos"
+    ):
+        raise FixtureError("fixture source_path must be a normalized relative .nostos path")
+    source = fixture / "source.nostos"
+    if source.is_symlink() or not source.is_file():
+        raise FixtureError("fixture must contain one regular non-symlink source.nostos")
+    return manifest
 
 
 def run(command, capture=True):
@@ -30,11 +65,48 @@ def run(command, capture=True):
     return completed.stdout or b""
 
 
+def core_command(
+    scripts: Path,
+    project: Path,
+    binary: Optional[Path],
+    arguments: Sequence[CommandPart],
+) -> List[CommandPart]:
+    """Build one wrapper command while preserving explicit binary authority."""
+
+    command: List[CommandPart] = [
+        sys.executable,
+        scripts / "nostos_core.py",
+        "run",
+        "--project",
+        project,
+    ]
+    if binary:
+        command.extend(["--binary", binary.resolve()])
+    command.extend(["--"] + list(arguments))
+    return command
+
+
 def execute(adapter_directory: str, args: argparse.Namespace) -> dict:
     fixture = args.fixture.resolve()
     output = args.output.resolve()
-    manifest = json.loads((fixture / "fixture.json").read_text(encoding="utf-8"))
+    manifest = load_manifest(fixture)
     output.mkdir(parents=True, exist_ok=False)
+    try:
+        return execute_created(adapter_directory, args, fixture, output, manifest)
+    except BaseException:
+        shutil.rmtree(str(output), ignore_errors=True)
+        raise
+
+
+def execute_created(
+    adapter_directory: str,
+    args: argparse.Namespace,
+    fixture: Path,
+    output: Path,
+    manifest: dict,
+) -> dict:
+    """Run a validated fixture inside a newly created disposable output."""
+
     install(output, adapter_directory, "copy", False)
     scripts = output / adapter_directory / "skills" / "nostos" / "scripts"
     initialize = [
@@ -59,122 +131,156 @@ def execute(adapter_directory: str, args: argparse.Namespace) -> dict:
     source = output / manifest["source_path"]
     shutil.copyfile(str(fixture / "source.nostos"), str(source))
     formatted = run(
-        [
-            sys.executable,
-            scripts / "nostos_core.py",
-            "run",
-            "--project",
+        core_command(
+            scripts,
             output,
-            "--",
-            "format",
-            "--file",
-            source,
-            "--project",
-            output,
-        ]
+            args.binary,
+            [
+                "format",
+                "--file",
+                source,
+                "--project",
+                output,
+            ],
+        )
     )
     source.write_bytes(formatted)
     database = output / "graph.ndb"
     run(
-        [
-            sys.executable,
-            scripts / "nostos_core.py",
-            "run",
-            "--project",
+        core_command(
+            scripts,
             output,
-            "--",
-            "sync",
-            "--project",
-            output,
-            "--database",
-            database,
-            "--format",
-            "json",
-        ]
-    )
-    inspection = json.loads(
-        run(
+            args.binary,
             [
-                sys.executable,
-                scripts / "nostos_core.py",
-                "run",
+                "sync",
                 "--project",
                 output,
-                "--",
-                "inspect",
                 "--database",
                 database,
                 "--format",
                 "json",
-            ]
+            ],
+        )
+    )
+    inspection = json.loads(
+        run(
+            core_command(
+                scripts,
+                output,
+                args.binary,
+                [
+                    "inspect",
+                    "--database",
+                    database,
+                    "--format",
+                    "json",
+                ],
+            )
         ).decode("utf-8")
     )
     statistics = json.loads(
         run(
-            [
-                sys.executable,
-                scripts / "nostos_core.py",
-                "run",
-                "--project",
+            core_command(
+                scripts,
                 output,
-                "--",
-                "stats",
-                "--database",
-                database,
-                "--format",
-                "json",
-            ]
+                args.binary,
+                [
+                    "stats",
+                    "--database",
+                    database,
+                    "--format",
+                    "json",
+                ],
+            )
         ).decode("utf-8")
     )
     warnings = json.loads(
         run(
-            [
-                sys.executable,
-                scripts / "nostos_core.py",
-                "run",
-                "--project",
+            core_command(
+                scripts,
                 output,
-                "--",
-                "warnings",
-                "--project",
-                output,
-                "--format",
-                "json",
-            ]
+                args.binary,
+                [
+                    "warnings",
+                    "--project",
+                    output,
+                    "--format",
+                    "json",
+                ],
+            )
         ).decode("utf-8")
     )
     unresolved = json.loads(
         run(
-            [
-                sys.executable,
-                scripts / "nostos_core.py",
-                "run",
-                "--project",
+            core_command(
+                scripts,
                 output,
-                "--",
-                "unresolved",
+                args.binary,
+                [
+                    "unresolved",
+                    "--database",
+                    database,
+                    "--format",
+                    "json",
+                ],
+            )
+        ).decode("utf-8")
+    )
+    run(
+        core_command(
+            scripts,
+            output,
+            args.binary,
+            [
+                "check",
                 "--database",
                 database,
                 "--format",
                 "json",
-            ]
-        ).decode("utf-8")
+            ],
+        )
     )
+    visualize = [
+        sys.executable,
+        output
+        / adapter_directory
+        / "skills"
+        / "nostos-visualize"
+        / "scripts"
+        / "nostos_core.py",
+        "run",
+    ]
+    if args.binary:
+        visualize.extend(["--binary", args.binary.resolve()])
+    else:
+        visualize.extend(["--project", output])
+    visualize.extend(["--database", database, "--"])
     run(
-        [
-            sys.executable,
-            scripts / "nostos_core.py",
-            "run",
-            "--project",
-            output,
-            "--",
-            "check",
-            "--database",
-            database,
+        visualize
+        + [
+            "query",
+            "--read-only",
+            "MATCH (n) RETURN n ORDER BY id(n) LIMIT 1",
             "--format",
             "json",
         ]
     )
+    rejected_write = subprocess.run(
+        [str(value) for value in visualize + ["query", "--read-only", "CREATE (n)"]],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=False,
+    )
+    if rejected_write.returncode != 4 or b"read-only" not in rejected_write.stderr:
+        raise FixtureError(
+            "visualization wrapper did not reject a write with query exit 4"
+        )
+    after_rejection = json.loads(
+        run(visualize + ["stats", "--format", "json"]).decode("utf-8")
+    )
+    if after_rejection != statistics:
+        raise FixtureError("visualization write rejection changed database statistics")
     return {
         "inspection": inspection,
         "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
