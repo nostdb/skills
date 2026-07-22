@@ -19,7 +19,7 @@ Actions:
   init  Initialize one guarded Source Mode project through nostos_project.py.
 
 Init defaults:
-  --core-version 0.1.0
+  --core-version 0.0.1
   --core-provider auto
   --database graph.ndb
 

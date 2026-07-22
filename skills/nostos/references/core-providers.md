@@ -21,7 +21,7 @@ The project policy is:
 
 ```toml
 [skills]
-core_version = "0.1.0"
+core_version = "0.0.1"
 database = "graph.ndb"
 core_provider = "auto" # auto | installed | npx
 ```

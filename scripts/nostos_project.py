@@ -22,7 +22,7 @@ from nostos_config import (
 )
 
 
-DEFAULT_CORE_VERSION = "0.1.0"
+DEFAULT_CORE_VERSION = "0.0.1"
 
 
 def initialize(args: argparse.Namespace) -> dict:

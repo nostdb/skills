@@ -75,7 +75,7 @@ class SkillTests(unittest.TestCase):
                 "--layout",
                 layout,
                 "--core-version",
-                "0.1.0",
+                "0.0.1",
                 "--module-id",
                 "11111111-1111-1111-1111-111111111111",
             )
@@ -85,7 +85,7 @@ class SkillTests(unittest.TestCase):
             self.assertTrue((project / source).is_file())
             config = (project / "nostos.toml").read_text(encoding="utf-8")
             self.assertIn('layout = "{}"'.format(layout), config)
-            self.assertIn('core_version = "0.1.0"', config)
+            self.assertIn('core_version = "0.0.1"', config)
             self.assertIn('core_provider = "auto"', config)
             self.assertIn('database = "graph.ndb"', config)
             self.assertIn('"{}" = "11111111-1111-1111-1111-111111111111"'.format(source), config)
@@ -153,7 +153,7 @@ class SkillTests(unittest.TestCase):
             "--layout",
             "single",
             "--core-version",
-            "0.1.0",
+            "0.0.1",
             "--core-binary",
             fake,
             "--module-id",
@@ -168,7 +168,7 @@ class SkillTests(unittest.TestCase):
             project,
         )
         self.assertEqual(mismatch.returncode, 3)
-        self.assertIn("Core version mismatch: expected 0.1.0", mismatch.stderr)
+        self.assertIn("Core version mismatch: expected 0.0.1", mismatch.stderr)
         self.assertIn("found 9.9.9", mismatch.stderr)
 
         configured = invoke(
@@ -207,7 +207,7 @@ class SkillTests(unittest.TestCase):
         for name in ("explicit", "environment", "configured", "path"):
             binary = self.temporary / ("nostos-" + name)
             binary.write_text(
-                "#!{}\nimport sys\nprint('nostos 0.1.0')\n".format(sys.executable),
+                "#!{}\nimport sys\nprint('nostos 0.0.1')\n".format(sys.executable),
                 encoding="utf-8",
             )
             binary.chmod(0o755)
@@ -271,7 +271,7 @@ class SkillTests(unittest.TestCase):
         (path_directory / "nostos").unlink()
         missing = invoke(*command, env=environment)
         self.assertEqual(missing.returncode, 3)
-        self.assertIn("cannot locate nostos 0.1.0", missing.stderr)
+        self.assertIn("cannot locate nostos 0.0.1", missing.stderr)
         self.assertFalse(npx_log.exists())
         config_path.write_text(
             config_path.read_text(encoding="utf-8").replace(
@@ -281,7 +281,7 @@ class SkillTests(unittest.TestCase):
         )
         legacy_missing = invoke(*command, env=environment)
         self.assertEqual(legacy_missing.returncode, 3)
-        self.assertIn("cannot locate nostos 0.1.0", legacy_missing.stderr)
+        self.assertIn("cannot locate nostos 0.0.1", legacy_missing.stderr)
         self.assertFalse(npx_log.exists())
 
     def test_npx_provider_is_pinned_and_preserves_process_behavior(self):
@@ -309,7 +309,7 @@ class SkillTests(unittest.TestCase):
             "#!{}\n"
             "import os, signal, sys, time\n"
             "if sys.argv[1:] == ['--version']:\n"
-            "    print('nostos 0.1.0')\n"
+            "    print('nostos 0.0.1')\n"
             "elif sys.argv[1:] == ['forward', 'values with spaces', ';not-shell']:\n"
             "    print('forwarded stdout')\n"
             "    print('forwarded stderr', file=sys.stderr)\n"
@@ -332,7 +332,7 @@ class SkillTests(unittest.TestCase):
             "import json, os, subprocess, sys\n"
             "with open(os.environ['NPX_LOG'], 'a') as output:\n"
             "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-            "if sys.argv[1:4] != ['--yes', '--package=@nostosdb/cli@0.1.0', 'nostos']:\n"
+            "if sys.argv[1:4] != ['--yes', '--package=@nostosdb/cli@0.0.1', 'nostos']:\n"
             "    sys.exit(97)\n"
             "sys.exit(subprocess.run([os.environ['FAKE_CLI']] + sys.argv[4:]).returncode)\n"
             .format(sys.executable),
@@ -374,7 +374,7 @@ class SkillTests(unittest.TestCase):
         self.assertIsNone(details["binary"])
         self.assertEqual(
             details["command"][1:],
-            ["--yes", "--package=@nostosdb/cli@0.1.0", "nostos"],
+            ["--yes", "--package=@nostosdb/cli@0.0.1", "nostos"],
         )
         explicit = invoke(
             *base,
@@ -751,7 +751,7 @@ class SkillTests(unittest.TestCase):
         native = self.temporary / "nostos-native"
         native.write_text(
             "#!{}\nimport sys\n"
-            "print('nostos 0.1.0') if sys.argv[1:] == ['--version'] else sys.exit(9)\n"
+            "print('nostos 0.0.1') if sys.argv[1:] == ['--version'] else sys.exit(9)\n"
             .format(sys.executable),
             encoding="utf-8",
         )
@@ -806,8 +806,8 @@ class SkillTests(unittest.TestCase):
         fake_npx.write_text(
             "#!{}\nimport json, os, sys\n"
             "open(os.environ['NPX_LOG'], 'w').write(json.dumps(sys.argv[1:]))\n"
-            "expected = ['--yes', '--package=@nostosdb/cli@0.1.0', 'nostos', '--version']\n"
-            "print('nostos 0.1.0') if sys.argv[1:] == expected else sys.exit(97)\n"
+            "expected = ['--yes', '--package=@nostosdb/cli@0.0.1', 'nostos', '--version']\n"
+            "print('nostos 0.0.1') if sys.argv[1:] == expected else sys.exit(97)\n"
             .format(sys.executable),
             encoding="utf-8",
         )
@@ -831,11 +831,11 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(payload["provider"], "npx")
         self.assertEqual(
             payload["command"][1:],
-            ["--yes", "--package=@nostosdb/cli@0.1.0", "nostos"],
+            ["--yes", "--package=@nostosdb/cli@0.0.1", "nostos"],
         )
         self.assertEqual(
             json.loads(npx_log.read_text(encoding="utf-8")),
-            ["--yes", "--package=@nostosdb/cli@0.1.0", "nostos", "--version"],
+            ["--yes", "--package=@nostosdb/cli@0.0.1", "nostos", "--version"],
         )
 
     def test_shared_fixture_has_equivalent_source_and_database_semantics(self):

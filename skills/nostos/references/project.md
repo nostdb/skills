@@ -10,7 +10,7 @@ Initialize once:
 
 ```bash
 python3 <skill-root>/scripts/nostos_skill.py init \
-  --project <project> --layout centralized --core-version 0.1.0 \
+  --project <project> --layout centralized --core-version 0.0.1 \
   --core-provider auto
 ```
 
@@ -31,7 +31,7 @@ entry = ".nostos/graph.nostos"
 
 [skills]
 core_provider = "auto"
-core_version = "0.1.0"
+core_version = "0.0.1"
 database = "graph.ndb"
 ```
 
@@ -41,7 +41,7 @@ Persist a user-approved selection without moving files:
 
 ```bash
 python3 <skill-root>/scripts/nostos_project.py configure \
-  --project <project> --layout colocated --core-version 0.1.0 \
+  --project <project> --layout colocated --core-version 0.0.1 \
   --core-provider auto
 ```
 

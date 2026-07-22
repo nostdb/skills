@@ -1,5 +1,5 @@
 {
-  "core_version": "0.1.0",
+  "core_version": "0.0.1",
   "layout": "centralized",
   "module_id": "11111111-1111-1111-1111-111111111111",
   "source_path": ".nostos/graph.nostos"
