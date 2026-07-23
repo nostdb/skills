@@ -23,7 +23,7 @@ from nostdb_config import (
 )
 
 
-DEFAULT_CORE_VERSION = "0.0.1"
+DEFAULT_CORE_VERSION = "0.0.2"
 NDB_SUFFIXES = (
     ".nostdb",
     ".nostdb-wal",

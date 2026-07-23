@@ -9,7 +9,7 @@ Initialize once:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_skill.py init \
-  --src <src> --core-version 0.0.1 \
+  --src <src> --core-version 0.0.2 \
   --core-provider auto
 ```
 
@@ -27,7 +27,7 @@ The helper creates the database through the pinned CLI and writes:
   "nost": false,
   "skills": {
     "core_provider": "auto",
-    "core_version": "0.0.1"
+    "core_version": "0.0.2"
   }
 }
 ```
@@ -57,7 +57,7 @@ Persist a user-approved selection without moving files:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_project.py configure \
-  --src <src> --core-version 0.0.1 \
+  --src <src> --core-version 0.0.2 \
   --core-provider auto
 ```
 

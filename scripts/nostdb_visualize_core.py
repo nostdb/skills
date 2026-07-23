@@ -18,7 +18,7 @@ from nostdb_provider import (
 )
 
 
-DEFAULT_CORE_VERSION = "0.0.1"
+DEFAULT_CORE_VERSION = "0.0.2"
 FORMATS = {"table", "json", "jsonl", "csv"}
 INSPECTION_COMMANDS = {"check", "inspect", "schema", "stats", "unresolved"}
 

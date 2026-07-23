@@ -23,7 +23,7 @@ Actions:
           one explicitly selected project root.
 
 Init defaults:
-  --core-version 0.0.1
+  --core-version 0.0.2
   --core-provider auto
 
 Use --allow-nonempty only after confirming the destination is the intended

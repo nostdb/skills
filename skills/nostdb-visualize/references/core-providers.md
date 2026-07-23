@@ -22,7 +22,7 @@ Native resolution order is an explicit `--binary`, `NOSTDB_BIN`, then `nostdb` o
 The project policy is:
 
 ```json
-{"nostdb":1,"root":".nostdb","nost":false,"skills":{"core_version":"0.0.1","core_provider":"auto"}}
+{"nostdb":1,"root":".nostdb","nost":false,"skills":{"core_version":"0.0.2","core_provider":"auto"}}
 ```
 
 - `installed`: use native resolution only and never initiate a network fallback.
@@ -32,7 +32,7 @@ The project policy is:
 
 The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper never uses `latest` or a version range. npx requires the command plus network access or a usable npm cache; failure reports the pinned version and installation alternatives without weakening the version check.
 
-The unsupported `@nostdb/cli@0.0.1` package is published under `latest` and
+The unsupported `@nostdb/cli@0.0.2` package is published under `latest` and
 `next`. The `auto` and `npx` policies still invoke the exact version recorded in
 `skills.core_version`, never a dist-tag. For a source-built or network-free
 provider, build the sibling CLI repository, select `core_provider =

@@ -64,7 +64,7 @@ Skill installation and CLI execution are separate uses of `npx`:
 - `npx skills add ...` downloads an Agent Skill from this GitHub repository.
 - `npx --package=@nostdb/cli@VERSION nostdb ...` runs the Core-containing CLI selected by the Skill.
 
-The unsupported `@nostdb/cli@0.0.1` package is published under `latest` and
+The unsupported `@nostdb/cli@0.0.2` package is published under `latest` and
 `next`, so `auto` can use its exact-version npx fallback. Use `installed` with
 an exactly matching source-built or global `nostdb` binary when execution must
 remain network-free. The wrapper never falls back to a dist-tag or version

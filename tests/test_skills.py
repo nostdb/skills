@@ -76,7 +76,7 @@ class SkillTests(unittest.TestCase):
             "--src",
             project,
             "--core-version",
-            "0.0.1",
+            "0.0.2",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
@@ -92,7 +92,7 @@ class SkillTests(unittest.TestCase):
         self.assertNotIn("config_version", document)
         self.assertNotIn("language_version", document)
         self.assertNotIn("source", document)
-        self.assertEqual(document["skills"]["core_version"], "0.0.1")
+        self.assertEqual(document["skills"]["core_version"], "0.0.2")
         self.assertEqual(document["skills"]["core_provider"], "auto")
         self.assertNotIn("database", document["skills"])
         self.assertNotIn("database", document)
@@ -378,7 +378,7 @@ class SkillTests(unittest.TestCase):
             "--src",
             project,
             "--core-version",
-            "0.0.1",
+            "0.0.2",
             "--core-binary",
             fake,
         )
@@ -393,7 +393,7 @@ class SkillTests(unittest.TestCase):
             fake,
         )
         self.assertEqual(mismatch.returncode, 3)
-        self.assertIn("Core version mismatch: expected 0.0.1", mismatch.stderr)
+        self.assertIn("Core version mismatch: expected 0.0.2", mismatch.stderr)
         self.assertIn("found 9.9.9", mismatch.stderr)
 
         configured = invoke(
@@ -436,7 +436,7 @@ class SkillTests(unittest.TestCase):
         for name in ("explicit", "environment", "path"):
             binary = self.temporary / ("nostdb-" + name)
             binary.write_text(
-                "#!{}\nimport sys\nprint('nostdb 0.0.1')\n".format(sys.executable),
+                "#!{}\nimport sys\nprint('nostdb 0.0.2')\n".format(sys.executable),
                 encoding="utf-8",
             )
             binary.chmod(0o755)
@@ -446,7 +446,7 @@ class SkillTests(unittest.TestCase):
         project_binary.write_text(
             "#!{}\nfrom pathlib import Path\n"
             "Path({!r}).write_text('executed')\n"
-            "print('nostdb 0.0.1')\n".format(
+            "print('nostdb 0.0.2')\n".format(
                 sys.executable, str(project_binary_log)
             ),
             encoding="utf-8",
@@ -507,7 +507,7 @@ class SkillTests(unittest.TestCase):
         (path_directory / "nostdb").unlink()
         missing = invoke(*command, env=environment)
         self.assertEqual(missing.returncode, 3)
-        self.assertIn("cannot locate nostdb 0.0.1", missing.stderr)
+        self.assertIn("cannot locate nostdb 0.0.2", missing.stderr)
         self.assertIn("skills.core_binary is metadata only", missing.stderr)
         self.assertFalse(project_binary_log.exists())
         self.assertFalse(npx_log.exists())
@@ -524,7 +524,7 @@ class SkillTests(unittest.TestCase):
         config_path.write_text(json.dumps(document) + "\n", encoding="utf-8")
         legacy_missing = invoke(*command, env=environment)
         self.assertEqual(legacy_missing.returncode, 3)
-        self.assertIn("cannot locate nostdb 0.0.1", legacy_missing.stderr)
+        self.assertIn("cannot locate nostdb 0.0.2", legacy_missing.stderr)
         self.assertFalse(project_binary_log.exists())
         self.assertFalse(npx_log.exists())
 
@@ -549,7 +549,7 @@ class SkillTests(unittest.TestCase):
             "#!{}\n"
             "import os, signal, sys, time\n"
             "if sys.argv[1:] == ['--version']:\n"
-            "    print('nostdb 0.0.1')\n"
+            "    print('nostdb 0.0.2')\n"
             "elif sys.argv[1:] == ['forward', 'values with spaces', ';not-shell']:\n"
             "    print('forwarded stdout')\n"
             "    print('forwarded stderr', file=sys.stderr)\n"
@@ -572,7 +572,7 @@ class SkillTests(unittest.TestCase):
             "import json, os, subprocess, sys\n"
             "with open(os.environ['NPX_LOG'], 'a') as output:\n"
             "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-            "if sys.argv[1:4] != ['--yes', '--package=@nostdb/cli@0.0.1', 'nostdb']:\n"
+            "if sys.argv[1:4] != ['--yes', '--package=@nostdb/cli@0.0.2', 'nostdb']:\n"
             "    sys.exit(97)\n"
             "sys.exit(subprocess.run([os.environ['FAKE_CLI']] + sys.argv[4:]).returncode)\n"
             .format(sys.executable),
@@ -614,7 +614,7 @@ class SkillTests(unittest.TestCase):
         self.assertIsNone(details["binary"])
         self.assertEqual(
             details["command"][1:],
-            ["--yes", "--package=@nostdb/cli@0.0.1", "nostdb"],
+            ["--yes", "--package=@nostdb/cli@0.0.2", "nostdb"],
         )
         explicit = invoke(
             *base,
@@ -1028,7 +1028,7 @@ class SkillTests(unittest.TestCase):
         (fixture / "fixture.json").write_text(
             json.dumps(
                 {
-                    "core_version": "0.0.1",
+                    "core_version": "0.0.2",
                     "module_id": "11111111-1111-1111-1111-111111111111",
                     "source_path": "../victim.nost",
                 }
@@ -1086,7 +1086,7 @@ class SkillTests(unittest.TestCase):
         native.write_text(
             "#!{}\nimport json, pathlib, sys\n"
             "if sys.argv[1:] == ['--version']:\n"
-            "    print('nostdb 0.0.1')\n"
+            "    print('nostdb 0.0.2')\n"
             "elif sys.argv[1:2] == ['sync']:\n"
             "    project = pathlib.Path(sys.argv[sys.argv.index('--project') + 1])\n"
             "    config = json.loads((project / 'nostdb.json').read_text())\n"
@@ -1149,8 +1149,8 @@ class SkillTests(unittest.TestCase):
         fake_npx.write_text(
             "#!{}\nimport json, os, sys\n"
             "open(os.environ['NPX_LOG'], 'w').write(json.dumps(sys.argv[1:]))\n"
-            "expected = ['--yes', '--package=@nostdb/cli@0.0.1', 'nostdb', '--version']\n"
-            "print('nostdb 0.0.1') if sys.argv[1:] == expected else sys.exit(97)\n"
+            "expected = ['--yes', '--package=@nostdb/cli@0.0.2', 'nostdb', '--version']\n"
+            "print('nostdb 0.0.2') if sys.argv[1:] == expected else sys.exit(97)\n"
             .format(sys.executable),
             encoding="utf-8",
         )
@@ -1174,11 +1174,11 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(payload["provider"], "npx")
         self.assertEqual(
             payload["command"][1:],
-            ["--yes", "--package=@nostdb/cli@0.0.1", "nostdb"],
+            ["--yes", "--package=@nostdb/cli@0.0.2", "nostdb"],
         )
         self.assertEqual(
             json.loads(npx_log.read_text(encoding="utf-8")),
-            ["--yes", "--package=@nostdb/cli@0.0.1", "nostdb", "--version"],
+            ["--yes", "--package=@nostdb/cli@0.0.2", "nostdb", "--version"],
         )
 
     def test_visualization_wrapper_enforces_read_only_standalone_database(self):
@@ -1194,7 +1194,7 @@ class SkillTests(unittest.TestCase):
             "#!{}\n"
             "import json, os, sys\n"
             "if sys.argv[1:] == ['--version']:\n"
-            "    print('nostdb 0.0.1')\n"
+            "    print('nostdb 0.0.2')\n"
             "else:\n"
             "    with open(os.environ['VISUALIZE_LOG'], 'a') as output:\n"
             "        output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
