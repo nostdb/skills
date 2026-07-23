@@ -14,6 +14,9 @@ python3 <skill-root>/scripts/nostdb_core.py resolve \
   --project <project> --json
 ```
 
-For standalone NDB-only use, provide both `--binary /reviewed/nostdb` and `--database /existing/graph.nostdb`; no `nostdb.json` is required. Every run requires an explicit existing database. The wrapper never forwards a project path to the CLI, so it cannot trigger implicit synchronization.
+For standalone NDB-only use, provide both `--binary /reviewed/nostdb` and `--database /existing/.nostdb`; no `nostdb.json` is required. Every run requires an explicit existing database. The wrapper never forwards a project path to the CLI, so it cannot trigger implicit synchronization.
 
-If inspection reports `source_managed: true`, `.nost` is authoritative. The visualization workflow still reads only the existing materialized database. Otherwise `.nostdb` is authoritative. Visualization remains read-only in either mode.
+If inspection reports `nost: true`, a human-readable-source synchronization
+baseline exists. Neither representation is chosen without the
+project reconciliation rules. The visualization workflow still reads only the
+existing `.nostdb` and remains read-only.

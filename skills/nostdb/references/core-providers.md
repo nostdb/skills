@@ -22,7 +22,7 @@ Native resolution order is an explicit `--binary`, `NOSTDB_BIN`, then `nostdb` o
 The project policy is:
 
 ```json
-{"skills":{"core_version":"0.0.1","database":"graph.nostdb","core_provider":"auto"}}
+{"nostdb":1,"root":".nostdb","nost":false,"skills":{"core_version":"0.0.1","core_provider":"auto"}}
 ```
 
 - `installed`: use native resolution only and never initiate a network fallback.
@@ -60,6 +60,6 @@ replace the environment authorization.
 - exact package/version vector without shell interpolation;
 - argument, stdout, stderr, and exit-code equivalence across providers;
 - missing npx, offline/cache failure, unsupported platform, and interrupted child behavior;
-- the existing Codex/Claude portable fixture producing identical canonical source hashes, logical database checksums, counts, warnings, and unresolved rows through both providers.
+- the existing Codex/Claude portable fixture producing identical canonical source hashes, logical generations/counts, warnings, and unresolved rows through both providers.
 
 Use `nostdb_core.py resolve --json` to inspect the selected provider and its exact argument vector. Native default output remains the binary path for compatibility; an npx provider has no persistent binary path.

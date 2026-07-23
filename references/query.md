@@ -9,31 +9,36 @@ Prefer machine output:
 ```bash
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   query 'MATCH (n) RETURN n LIMIT 100' \
-  --project <src> --database <src>/<skills.database> --format json
+  --project <src> --format json
 ```
 
 Inspect the exact administration surfaces without entering the REPL:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  schema --database <src>/<skills.database> --format json
+  schema --database <src>/.nostdb --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  unresolved --database <src>/<skills.database> --format json
+  unresolved --database <src>/.nostdb --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   imports --project <src> --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   warnings --project <src> --format json
 ```
 
-Start with `LIMIT 100` or lower. Narrow topology traversals before raising it. Source Mode query writes require an explicit owner Stable Module ID and the CLI's conflict-safe source workflow; do not use that path during read-only exploration or visualization.
+Start with `LIMIT 100` or lower. Narrow topology traversals before raising it.
+Project query writes commit to the root `.nostdb`; when `nost` is enabled, the
+CLI synchronizes canonical human-readable source after the commit.
 
 Detect authority mode exactly:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  inspect --database <src>/<skills.database> --format json
+  inspect --database <src>/.nostdb --format json
 ```
 
-`source_managed: true` means Source Mode; `false` means NDB-only authority. Use `RETURN DISTINCT id(n) AS internal_id, ... ORDER BY ..., internal_id` when a stable database-local tie-breaker is required. The `unresolved` command returns the same `internal_id` for unresolved/stale Nodes, allowing exact correlation; Schema rows have a null internal ID.
+`nost: true` means a human-readable-source synchronization baseline exists; it
+does not make `.nostdb` read-only. `false` is the default NDB-only project.
+Use `RETURN DISTINCT id(n) AS internal_id, ... ORDER BY ..., internal_id` when a
+stable database-local tie-breaker is required.
 
 Use `stats`, `check`, and `doctor` for database/project health.

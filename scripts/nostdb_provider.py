@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, NamedTuple, Optional, Sequence
 
 from nostdb_config import (
+    configured_database,
     require_core_version,
     skill_values,
     validate_core_provider,
@@ -247,11 +248,10 @@ def run_command(command: Sequence[str]) -> int:
 def provider_payload(provider: CoreProvider, project: Path) -> dict:
     """Render deterministic provider metadata."""
 
-    values = skill_values(project)
     return {
         "binary": provider.binary,
         "command": provider.command,
-        "database": values.get("database"),
+        "database": configured_database(project),
         "provider": provider.kind,
         "version": provider.version,
     }

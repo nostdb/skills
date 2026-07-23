@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Initialize, configure, or remove a portable NostDB Source Mode project."""
+"""Initialize, configure, or remove a portable NostDB project."""
 
 import argparse
 import json
 import os
 import shutil
 import sys
-import uuid
 from pathlib import Path
 from typing import List
 
@@ -15,18 +14,16 @@ from nostdb_config import (
     ConfigError,
     atomic_write,
     config_path,
-    layout_source,
     read_text,
     update_sections,
+    update_values,
     validate_core_version,
     validate_core_provider,
-    validate_database_path,
-    validate_module_id,
+    validate_root_path,
 )
 
 
 DEFAULT_CORE_VERSION = "0.0.1"
-CENTRALIZED_LAYOUT = "centralized"
 NDB_SUFFIXES = (
     ".nostdb",
     ".nostdb-wal",
@@ -40,60 +37,46 @@ TEMPORARY_PREFIXES = (".nost-config-", ".nost-source-", ".nost-restore-")
 
 def initialize(args: argparse.Namespace) -> dict:
     project = args.src.resolve()
-    source_relative = layout_source(CENTRALIZED_LAYOUT)
-    source = project / source_relative
     configuration = config_path(project)
     if configuration.exists():
         raise ConfigError("refusing to replace existing {}".format(configuration))
-    if source.exists():
-        raise ConfigError("refusing to replace existing {}".format(source))
     if project.exists() and any(project.iterdir()) and not args.allow_nonempty:
         raise ConfigError(
             "refusing to initialize a nonempty directory without --allow-nonempty: {}".format(
                 project
             )
         )
-    module_id = validate_module_id(args.module_id or str(uuid.uuid4()))
     validate_core_version(args.core_version)
     validate_core_provider(args.core_provider)
-    validate_database_path(args.database)
+    database_root = validate_root_path(".nostdb")
+    database = project / database_root
+    if database.exists():
+        raise ConfigError("refusing to adopt existing {}".format(database))
     project.mkdir(parents=True, exist_ok=True)
-    source.parent.mkdir(parents=True, exist_ok=True)
     skills = {
         "core_version": args.core_version,
         "core_provider": args.core_provider,
-        "database": args.database,
     }
     if args.core_binary:
         skills["core_binary"] = args.core_binary
     text = json.dumps(
         {
-            "config_version": 2,
-            "language_version": 1,
-            "source": {"layout": CENTRALIZED_LAYOUT, "entry": source_relative},
-            "modules": {source_relative: module_id},
+            "nostdb": 1,
+            "root": database_root,
+            "nost": False,
             "skills": skills,
         },
         indent=2,
         ensure_ascii=False,
         sort_keys=True,
     ) + "\n"
-    created_source = False
-    try:
-        with source.open("x", encoding="utf-8", newline="\n") as output:
-            output.write("// NostDB source\n")
-        created_source = True
-        atomic_write(configuration, text)
-    except BaseException:
-        if created_source:
-            source.unlink(missing_ok=True)
-        raise
+    atomic_write(configuration, text)
     return {
         "config": str(configuration),
         "core_version": args.core_version,
-        "layout": CENTRALIZED_LAYOUT,
-        "module_id": module_id,
-        "source": source_relative,
+        "root": database_root,
+        "nost": False,
+        "src": str(project),
     }
 
 
@@ -107,21 +90,27 @@ def configure(args: argparse.Namespace) -> dict:
         skills["core_binary"] = args.core_binary
     if args.core_provider:
         skills["core_provider"] = validate_core_provider(args.core_provider)
-    if args.database:
-        skills["database"] = validate_database_path(args.database)
+    if args.nost is not None:
+        updates["nost"] = args.nost == "true"
     if skills:
         updates["skills"] = skills
     if not updates:
         raise ConfigError("configure requires at least one value")
-    updated = update_sections(read_text(project), updates)
+    text = read_text(project)
+    skill_updates = updates.pop("skills", None)
+    if skill_updates:
+        text = update_sections(text, {"skills": skill_updates})
+    updated_values = dict(updates)
+    updated = update_values(text, updated_values) if updated_values else text
     atomic_write(config_path(project), updated)
-    return {"config": str(config_path(project)), "updated": updates}
+    if skill_updates:
+        updated_values["skills"] = skill_updates
+    return {"config": str(config_path(project)), "updated": updated_values}
 
 
 def _is_nostdb_artifact(name: str) -> bool:
     return (
         name == "nostdb.json"
-        or name.endswith(".nost")
         or name.endswith(".nost-lock")
         or name.endswith(NDB_SUFFIXES)
         or name.startswith(TEMPORARY_PREFIXES)
@@ -188,12 +177,12 @@ def _assert_database_lock_available(path: Path) -> None:
 def remove(args: argparse.Namespace) -> dict:
     requested = args.src.expanduser().absolute()
     if requested.is_symlink():
-        raise ConfigError("source root must not be a symlink: {}".format(requested))
+        raise ConfigError("project root must not be a symlink: {}".format(requested))
     src = requested.resolve()
     if not src.is_dir():
-        raise ConfigError("source root is not a directory: {}".format(src))
+        raise ConfigError("project root is not a directory: {}".format(src))
     if src.parent == src or src == Path.home().resolve():
-        raise ConfigError("refusing broad source root removal: {}".format(src))
+        raise ConfigError("refusing broad project root removal: {}".format(src))
     configuration = config_path(src)
     if configuration.is_symlink() or not configuration.is_file():
         raise ConfigError("refusing removal without a regular {}".format(configuration))
@@ -226,13 +215,11 @@ def remove(args: argparse.Namespace) -> dict:
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
-    init = commands.add_parser("init", help="create a new Source Mode project")
+    init = commands.add_parser("init", help="create a new NDB-only project configuration")
     init.add_argument("--src", type=Path, required=True)
     init.add_argument("--core-version", default=DEFAULT_CORE_VERSION)
     init.add_argument("--core-provider", choices=CORE_PROVIDERS, default="auto")
     init.add_argument("--core-binary")
-    init.add_argument("--database", default="graph.nostdb")
-    init.add_argument("--module-id")
     init.add_argument("--allow-nonempty", action="store_true")
     init.set_defaults(handler=initialize)
     change = commands.add_parser("configure", help="persist Core selection")
@@ -240,10 +227,10 @@ def parser() -> argparse.ArgumentParser:
     change.add_argument("--core-version")
     change.add_argument("--core-provider", choices=CORE_PROVIDERS)
     change.add_argument("--core-binary")
-    change.add_argument("--database")
+    change.add_argument("--nost", choices=("true", "false"))
     change.set_defaults(handler=configure)
     remove_command = commands.add_parser(
-        "remove", help="delete project-local NostDB files below one source root"
+        "remove", help="delete project-local NostDB files below one project root"
     )
     remove_command.add_argument("--src", type=Path, required=True)
     remove_command.add_argument("--dry-run", action="store_true")

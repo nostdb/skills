@@ -1,6 +1,6 @@
 # Deterministic helpers
 
-- `nostdb_project.py`: initialize fixed centralized source, persist Core
+- `nostdb_project.py`: initialize the NDB-only project, persist Core
   selection, and remove project-local NostDB artifacts
 - `nostdb_skill.py`: expose deterministic `help`, guarded `init`, and scoped
   `remove` actions for the public `nostdb` Skill

@@ -1,10 +1,9 @@
 # Project and Core configuration
 
-## Fixed source layout
+## Default NDB-only project
 
-The Skill always initializes the `centralized` layout under `.nost/`. Layout
-is not a Skill option. Do not silently migrate an existing project that uses a
-different layout.
+The Skill always creates the root `.nostdb`; source is hidden by default. Do
+not create `.nost` until top-level `nost` is enabled.
 
 Initialize once:
 
@@ -14,25 +13,45 @@ python3 <skill-root>/scripts/nostdb_skill.py init \
   --core-provider auto
 ```
 
-Initialization refuses a nonempty directory. After inspecting an existing code/document project and confirming it is the intended destination, add `--allow-nonempty`; existing `nostdb.json` and the selected source target are still never replaced.
+Initialization refuses a nonempty directory. After inspecting an existing
+code/document project and confirming it is the intended destination, add
+`--allow-nonempty`; existing `nostdb.json` and the root `.nostdb` are never
+replaced.
 
-The helper creates one canonical source entry, a nonzero Stable Module ID, and these independent pins in `nostdb.json`:
+The helper creates the database through the pinned CLI and writes:
 
 ```json
 {
-  "config_version": 1,
-  "language_version": 1,
-  "source": {"layout": "centralized", "entry": ".nost/graph.nost"},
-  "modules": {".nost/graph.nost": "<stable-module-id>"},
+  "nostdb": 1,
+  "root": ".nostdb",
+  "nost": false,
   "skills": {
     "core_provider": "auto",
-    "core_version": "0.0.1",
-    "database": "graph.nostdb"
+    "core_version": "0.0.1"
   }
 }
 ```
 
-`[skills] core_binary` may contain an absolute path or a project-relative path, but it is project-owned metadata and is never automatic execution authority. An explicit wrapper `--binary`, `NOSTDB_BIN`, then the user's `PATH` are checked in that order. When metadata is present without an explicit override, the wrapper warns that it is ignored; after reviewing the binary, authorize it with `--binary PATH` or `NOSTDB_BIN=PATH`. `skills.database` is the normalized project-relative authoritative artifact passed only to the CLI. The wrapper requires exact `nostdb --version` equality and exits with a clear diagnostic on mismatch. `installed` forbids npx fallback, `npx` always uses the exact official package version, and `auto` falls back only when no native candidate exists. A missing `core_provider` retains installed-only behavior for existing projects. For an existing project missing a required Skill key, ask the user and persist it with `configure --core-version ... --core-provider ... --database ...` before continuing.
+`skills.core_binary` may contain an absolute path or a project-relative path,
+but it is project-owned metadata and is never automatic execution authority.
+An explicit wrapper `--binary`, `NOSTDB_BIN`, then the user's `PATH` are checked
+in that order. The top-level `root` is always the project-local `.nostdb`. The
+wrapper requires exact `nostdb --version` equality.
+`installed` forbids npx fallback, `npx` always uses the exact official package
+version, and `auto` falls back only when no native candidate exists.
+
+To expose canonical source for direct editing:
+
+```bash
+python3 <skill-root>/scripts/nostdb_project.py configure \
+  --src <src> --nost true
+python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
+  sync --project <src> --format json
+```
+
+The sync creates `.nost/graph.nost` for one module or `.nost/modules/*.nost`
+for multiple Stable Module IDs. Setting `nost` back to `false` and syncing
+removes only those configured generated sources.
 
 Persist a user-approved selection without moving files:
 
@@ -42,8 +61,8 @@ python3 <skill-root>/scripts/nostdb_project.py configure \
   --core-provider auto
 ```
 
-The configure helper updates only the `skills` provider object. It never changes
-`source.layout` or moves modules.
+The configure helper can update provider metadata or top-level `nost`. The
+fixed `root` and source paths/Stable Module mappings remain Core-managed.
 
 Remove every project-local NostDB artifact in one operation:
 
@@ -51,9 +70,9 @@ Remove every project-local NostDB artifact in one operation:
 python3 <skill-root>/scripts/nostdb_skill.py remove --src <src>
 ```
 
-The removal plan covers `nostdb.json`, the centralized `.nost/` tree, legacy
-project-local `*.nost` sources, `.nostdb` databases and known sidecars, and
-guarded-helper temporary or lock files. It preserves unrelated files and parent
+The removal plan covers `nostdb.json`, the default `.nost/` tree, `.nostdb`
+databases and known sidecars, and guarded-helper temporary or lock files. It
+preserves unrelated files, unmanaged `.nost` files outside `.nost/`, and parent
 directories. Use `--dry-run` to inspect the exact targets. Removal requires a
 regular `nostdb.json`, rejects filesystem root/home and symlink boundaries, and
 refuses a database whose ownership lock is active.

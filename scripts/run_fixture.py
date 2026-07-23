@@ -28,13 +28,11 @@ def load_manifest(fixture: Path) -> dict:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise FixtureError("cannot read valid fixture manifest: {}".format(error)) from error
-    required = {"core_version", "layout", "module_id", "source_path"}
+    required = {"core_version", "module_id", "source_path"}
     if not isinstance(manifest, dict) or set(manifest) != required:
         raise FixtureError("fixture manifest must contain exactly {}".format(sorted(required)))
     if any(not isinstance(manifest[key], str) for key in required):
         raise FixtureError("fixture manifest values must be strings")
-    if manifest["layout"] != "centralized":
-        raise FixtureError("fixture manifest layout must be centralized")
     source_path = Path(manifest["source_path"])
     if (
         not manifest["source_path"]
@@ -119,14 +117,21 @@ def execute_created(
         manifest["core_version"],
         "--core-provider",
         args.core_provider,
-        "--module-id",
-        manifest["module_id"],
         "--allow-nonempty",
     ]
     if args.binary:
         initialize.extend(["--core-binary", str(args.binary.resolve())])
     run(initialize)
     source = output / manifest["source_path"]
+    source.parent.mkdir(parents=True, exist_ok=True)
+    config_path = output / "nostdb.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["nost"] = True
+    config["modules"] = {manifest["source_path"]: manifest["module_id"]}
+    config_path.write_text(
+        json.dumps(config, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     shutil.copyfile(str(fixture / "source.nost"), str(source))
     formatted = run(
         core_command(
@@ -143,7 +148,7 @@ def execute_created(
         )
     )
     source.write_bytes(formatted)
-    database = output / "graph.nostdb"
+    database = output / ".nostdb"
     run(
         core_command(
             scripts,
@@ -176,6 +181,12 @@ def execute_created(
             )
         ).decode("utf-8")
     )
+    for volatile in ("updated_at_unix_ms", "logical_checksum"):
+        if volatile in inspection["columns"]:
+            index = inspection["columns"].index(volatile)
+            inspection["columns"].pop(index)
+            for row in inspection["rows"]:
+                row.pop(index)
     statistics = json.loads(
         run(
             core_command(

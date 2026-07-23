@@ -67,8 +67,8 @@ class SkillTests(unittest.TestCase):
             self.assertEqual({line.split(":", 1)[0] for line in header}, {"name", "description"})
             self.assertIn("name: " + name, header)
 
-    def test_centralized_layout_and_core_pin_are_fixed(self):
-        project = self.temporary / "centralized"
+    def test_default_project_is_ndb_only_and_core_pin_is_fixed(self):
+        project = self.temporary / "default-root"
         result = invoke(
             sys.executable,
             ROOT / "scripts" / "nostdb_project.py",
@@ -77,21 +77,26 @@ class SkillTests(unittest.TestCase):
             project,
             "--core-version",
             "0.0.1",
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["layout"], "centralized")
-        self.assertEqual(payload["source"], ".nost/graph.nost")
-        self.assertTrue((project / ".nost" / "graph.nost").is_file())
+        self.assertEqual(payload["root"], ".nostdb")
+        self.assertFalse(payload["nost"])
+        self.assertFalse((project / ".nost").exists())
+        self.assertFalse((project / ".nostdb").exists())
         config = (project / "nostdb.json").read_text(encoding="utf-8")
         document = json.loads(config)
-        self.assertEqual(document["source"]["layout"], "centralized")
+        self.assertEqual(document["nostdb"], 1)
+        self.assertEqual(document["root"], ".nostdb")
+        self.assertFalse(document["nost"])
+        self.assertNotIn("config_version", document)
+        self.assertNotIn("language_version", document)
+        self.assertNotIn("source", document)
         self.assertEqual(document["skills"]["core_version"], "0.0.1")
         self.assertEqual(document["skills"]["core_provider"], "auto")
-        self.assertEqual(document["skills"]["database"], "graph.nostdb")
-        self.assertEqual(document["modules"][".nost/graph.nost"], "11111111-1111-1111-1111-111111111111")
+        self.assertNotIn("database", document["skills"])
+        self.assertNotIn("database", document)
+        self.assertNotIn("modules", document)
 
         config_path = project / "nostdb.json"
         document["retained"] = "yes"
@@ -109,9 +114,50 @@ class SkillTests(unittest.TestCase):
         config = config_path.read_text(encoding="utf-8")
         document = json.loads(config)
         self.assertEqual(document["retained"], "yes")
-        self.assertEqual(document["source"]["layout"], "centralized")
+        self.assertEqual(document["root"], ".nostdb")
+        self.assertFalse(document["nost"])
         self.assertEqual(document["skills"]["core_version"], "0.1.1")
-        self.assertEqual(document["modules"][".nost/graph.nost"], "11111111-1111-1111-1111-111111111111")
+        self.assertNotIn("database", document)
+        self.assertNotIn("modules", document)
+
+        enabled = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostdb_project.py",
+            "configure",
+            "--src",
+            project,
+            "--nost",
+            "true",
+        )
+        self.assertEqual(enabled.returncode, 0, enabled.stderr)
+        document = json.loads(config_path.read_text(encoding="utf-8"))
+        self.assertTrue(document["nost"])
+
+        database_option = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostdb_project.py",
+            "init",
+            "--src",
+            self.temporary / "unsupported-database-option",
+            "--database",
+            "graph.nostdb",
+        )
+        self.assertEqual(database_option.returncode, 2)
+        self.assertIn(
+            "unrecognized arguments: --database graph.nostdb",
+            database_option.stderr,
+        )
+
+        editable_option = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostdb_project.py",
+            "init",
+            "--src",
+            self.temporary / "unsupported-editable-option",
+            "--editable",
+        )
+        self.assertEqual(editable_option.returncode, 2)
+        self.assertIn("unrecognized arguments: --editable", editable_option.stderr)
 
         layout_option = invoke(
             sys.executable,
@@ -159,6 +205,39 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(allowed.returncode, 0, allowed.stderr)
         self.assertEqual((occupied / "unrelated.txt").read_text(encoding="utf-8"), "preserve\n")
 
+    def test_public_init_creates_database_without_materializing_source(self):
+        binary = os.environ.get("NOSTDB_TEST_BIN")
+        if binary is None:
+            suffix = ".exe" if os.name == "nt" else ""
+            candidate = ROOT.parent / "nostdb-cli" / "target" / "debug" / ("nostdb" + suffix)
+            if candidate.is_file():
+                binary = str(candidate)
+        if binary is None:
+            self.skipTest("set NOSTDB_TEST_BIN to run public initialization")
+        project = self.temporary / "public-init"
+        environment = os.environ.copy()
+        environment["NOSTDB_BIN"] = binary
+        initialized = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostdb_skill.py",
+            "init",
+            "--src",
+            project,
+            "--core-provider",
+            "installed",
+            env=environment,
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        payload = json.loads(initialized.stdout)
+        self.assertEqual(payload["root"], ".nostdb")
+        self.assertTrue((project / ".nostdb").is_file())
+        self.assertFalse((project / ".nost").exists())
+        document = json.loads((project / "nostdb.json").read_text(encoding="utf-8"))
+        self.assertFalse(document["nost"])
+        self.assertEqual(document["root"], ".nostdb")
+        self.assertNotIn("database", document)
+        self.assertNotIn("modules", document)
+
     def test_remove_deletes_only_scoped_nostdb_artifacts(self):
         src = self.temporary / "remove"
         src.mkdir()
@@ -167,24 +246,23 @@ class SkillTests(unittest.TestCase):
         (src / "code" / "keep.txt").write_text("keep\n", encoding="utf-8")
         initialized = invoke(
             sys.executable,
-            ROOT / "scripts" / "nostdb_skill.py",
+            ROOT / "scripts" / "nostdb_project.py",
             "init",
             "--src",
             src,
             "--allow-nonempty",
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         for relative in (
-            "legacy.nost",
+            ".nost/graph.nost",
+            "unmanaged.nost",
             "code/module.nost",
             "graph.nostdb",
             "graph.nostdb-wal",
             "graph.nostdb-shm",
             "graph.nostdb-journal",
             "graph.nostdb.lock",
-            "legacy.nostdb-lock",
+            "other.nostdb-lock",
             ".nost-source-orphan",
         ):
             target = src / relative
@@ -205,7 +283,8 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(preview["removed"], [])
         self.assertIn("nostdb.json", preview["targets"])
         self.assertIn(".nost", preview["targets"])
-        self.assertIn("code/module.nost", preview["targets"])
+        self.assertNotIn("unmanaged.nost", preview["targets"])
+        self.assertNotIn("code/module.nost", preview["targets"])
         self.assertTrue((src / "graph.nostdb").exists())
 
         removed = invoke(
@@ -221,7 +300,8 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(payload["removed"], preview["targets"])
         self.assertEqual((src / "unrelated.txt").read_text(encoding="utf-8"), "preserve\n")
         self.assertEqual((src / "code" / "keep.txt").read_text(encoding="utf-8"), "keep\n")
-        self.assertEqual(list(src.rglob("*.nost")), [])
+        self.assertEqual((src / "unmanaged.nost").read_bytes(), b"fixture")
+        self.assertEqual((src / "code" / "module.nost").read_bytes(), b"fixture")
         self.assertEqual(list(src.rglob("*.nostdb*")), [])
         self.assertFalse((src / "nostdb.json").exists())
         self.assertFalse((src / ".nost").exists())
@@ -251,6 +331,7 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         external = self.temporary / "external"
         external.mkdir()
+        (src / ".nost").mkdir()
         os.symlink(
             str(external),
             str(src / ".nost" / "external"),
@@ -300,8 +381,6 @@ class SkillTests(unittest.TestCase):
             "0.0.1",
             "--core-binary",
             fake,
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         mismatch = invoke(
@@ -348,7 +427,7 @@ class SkillTests(unittest.TestCase):
             fake,
             "--json",
         )
-        self.assertEqual(json.loads(details.stdout)["database"], "graph.nostdb")
+        self.assertEqual(json.loads(details.stdout)["database"], ".nostdb")
         self.assertEqual(json.loads(details.stdout)["provider"], "native")
 
     def test_native_provider_trust_boundary_and_installed_only_policy(self):
@@ -383,8 +462,6 @@ class SkillTests(unittest.TestCase):
             "installed",
             "--core-binary",
             project_binary,
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         self.assertEqual(
@@ -461,8 +538,6 @@ class SkillTests(unittest.TestCase):
             project,
             "--core-provider",
             "auto",
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         tools = self.temporary / "npx-bin"
@@ -664,8 +739,6 @@ class SkillTests(unittest.TestCase):
             project,
             "--core-provider",
             "auto",
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         environment = os.environ.copy()
@@ -956,7 +1029,6 @@ class SkillTests(unittest.TestCase):
             json.dumps(
                 {
                     "core_version": "0.0.1",
-                    "layout": "centralized",
                     "module_id": "11111111-1111-1111-1111-111111111111",
                     "source_path": "../victim.nost",
                 }
@@ -1012,9 +1084,18 @@ class SkillTests(unittest.TestCase):
 
         native = self.temporary / "nostdb-native"
         native.write_text(
-            "#!{}\nimport sys\n"
-            "print('nostdb 0.0.1') if sys.argv[1:] == ['--version'] else sys.exit(9)\n"
-            .format(sys.executable),
+            "#!{}\nimport json, pathlib, sys\n"
+            "if sys.argv[1:] == ['--version']:\n"
+            "    print('nostdb 0.0.1')\n"
+            "elif sys.argv[1:2] == ['sync']:\n"
+            "    project = pathlib.Path(sys.argv[sys.argv.index('--project') + 1])\n"
+            "    config = json.loads((project / 'nostdb.json').read_text())\n"
+            "    database = project / config['root']\n"
+            "    database.parent.mkdir(parents=True, exist_ok=True)\n"
+            "    database.write_bytes(b'core-created fixture')\n"
+            "    print('{{\"columns\":[],\"rows\":[]}}')\n"
+            "else:\n"
+            "    sys.exit(9)\n".format(sys.executable),
             encoding="utf-8",
         )
         native.chmod(0o755)
@@ -1052,7 +1133,7 @@ class SkillTests(unittest.TestCase):
         npx_project = self.temporary / "standalone-npx-project"
         initialized = invoke(
             sys.executable,
-            skill_entry,
+            installed["nostdb"] / "scripts" / "nostdb_project.py",
             "init",
             "--src",
             npx_project,
@@ -1197,8 +1278,6 @@ class SkillTests(unittest.TestCase):
             project,
             "--core-provider",
             "installed",
-            "--module-id",
-            "11111111-1111-1111-1111-111111111111",
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
         inspected = invoke(
@@ -1253,10 +1332,9 @@ class SkillTests(unittest.TestCase):
                         "ndb_format",
                         "schema_revision",
                         "generation",
-                        "logical_checksum",
-                        "source_managed",
+                        "nost",
                     ],
-                    "rows": [[0, 2, 1, "fa1f44b5248e3bf0", True]],
+                    "rows": [[0, 3, 1, True]],
                 },
                 "source_sha256": "774c768c5e5f34156bbcda0b9d15241fa8ad7e39f545998df0a241c716bb1171",
                 "statistics": {
@@ -1279,8 +1357,8 @@ class SkillTests(unittest.TestCase):
             (codex_root / ".nost" / "graph.nost").read_bytes(),
             (claude_root / ".nost" / "graph.nost").read_bytes(),
         )
-        self.assertTrue((codex_root / "graph.nostdb").is_file())
-        self.assertTrue((claude_root / "graph.nostdb").is_file())
+        self.assertTrue((codex_root / ".nostdb").is_file())
+        self.assertTrue((claude_root / ".nostdb").is_file())
 
 
 if __name__ == "__main__":

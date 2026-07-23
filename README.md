@@ -8,7 +8,7 @@ Start with the Root [user guide](https://github.com/nostdb/nostdb/blob/main/docs
 
 Two canonical Agent Skills provide the public surface:
 
-- `nostdb` is the default entry point for `help`, guarded centralized `init`,
+- `nostdb` is the default entry point for `help`, guarded NDB-only `init`,
   project-local `remove`, deterministic Core commands, Schema evolution,
   ingestion, and exploration.
 - `nostdb-visualize` is the separate graph-representation workflow for reviewable diagrams and visualization datasets.
@@ -31,10 +31,11 @@ Install only `nostdb` when visualization is not needed, or only `nostdb-visualiz
 The downloaded Skill directory does not require this repository checkout, a sibling `references/` or `scripts/` directory, the other NostDB Skill, a particular agent-specific parent path, or a particular current working directory.
 
 After the agent activates the Skill, `nostdb help` returns the supported action
-summary without requiring a source root, `nostdb init` creates the fixed
-centralized layout, and `nostdb remove` deletes recognized project-local NostDB
-files below one explicitly selected root. These are Agent Skill actions, not
-additional subcommands of the native `nostdb` CLI.
+summary without requiring a project, `nostdb init` creates `nostdb.json` and
+the root `.nostdb` without materializing `.nost`, and `nostdb remove`
+deletes recognized project-local NostDB files below one explicitly selected
+project root. These are Agent Skill actions, not additional subcommands of the native
+`nostdb` CLI.
 
 ## Source-preview quickstart
 
@@ -69,9 +70,11 @@ an exactly matching source-built or global `nostdb` binary when execution must
 remain network-free. The wrapper never falls back to a dist-tag or version
 range.
 
-Skills may write complete canonical `.nost` files and invoke supported CLI commands. They never parse, generate, patch, or decode `.nostdb` directly.
+Skills may enable `nost`, write complete canonical `.nost` files, and invoke
+supported CLI commands. They never parse, generate, patch, or decode `.nostdb`
+directly.
 
-Remove a Skill-managed source project after reviewing the exact root and
+Remove a Skill-managed NostDB project after reviewing the exact root and
 stopping any database owner:
 
 ```bash
@@ -79,7 +82,7 @@ python3 skills/nostdb/scripts/nostdb_skill.py remove --src "$NOSTDB_SRC"
 ```
 
 Add `--dry-run` to list every target without deleting it. Unrelated files in
-the source root are preserved.
+the project root are preserved.
 
 ## Verify
 
@@ -92,7 +95,7 @@ python3 scripts/verify_skills.py --format-check
 python3 scripts/verify_skills.py
 ```
 
-The explicit `NOSTDB_TEST_BIN` assignment makes the real CLI integration mandatory. Without it, the suite uses an already-built sibling development binary when available and otherwise skips that integration. The test compares canonical source hashes, logical database checksums, graph counts, diagnostics, and exit behavior.
+The explicit `NOSTDB_TEST_BIN` assignment makes the real CLI integration mandatory. Without it, the suite uses an already-built sibling development binary when available and otherwise skips that integration. The test compares canonical source hashes, graph generations/counts, diagnostics, and exit behavior; timestamp-dependent checksums are not cross-run equality keys.
 
 ## License
 

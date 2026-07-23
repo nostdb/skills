@@ -1,7 +1,10 @@
 # Safety and authority
 
-- In Source Mode, `.nost` is authoritative and synchronization is one-way to `.nostdb`.
-- In NDB-only and Server Modes, `.nostdb` is authoritative. A logical source export is not bidirectional synchronization.
+- Every configured project has an authoritative root `.nostdb`; source is hidden by
+  default.
+- With `nost: true`, Core materializes canonical human-readable `.nost`, tracks database
+  generation/time and source hashes/file times, and synchronizes the changed or
+  newer representation. Stop on equal-time divergence.
 - Never open, create, patch, copy as a mutation, or decode `.nostdb` in a Skill or helper. Invoke the pinned public `nostdb` CLI and let Core own all storage behavior.
 - Never store a file path as permanent entity or Schema identity. Preserve Stable Module IDs from `nostdb.json`.
 - Never create an Edge with a missing endpoint. Let Core create or resolve Placeholder Nodes for missing imports.
@@ -10,7 +13,7 @@
 - Inspect Git changes and content again before replacement. The guarded helper uses an exclusive cooperative lock with PID/host metadata, an exclusively created and fsynced same-directory temporary file, and a fresh descriptor/inode/content check immediately before atomic replacement. It restores external content if an in-place writer races the replacement. Stop on any conflict diagnostic; never overwrite the other change. After a crash, `nostdb_source.py unlock --file <owner.nost>` removes only a same-host lock whose recorded PID is no longer alive.
 - Use an explicit migration plan for changes spanning multiple source files.
 - Treat parser, Constraint, integrity, and unsupported-query diagnostics as authoritative. Never silently reinterpret invalid syntax.
-- Before `remove`, confirm the exact source root, inspect Git changes, and stop
+- Before `remove`, confirm the exact project root, inspect Git changes, and stop
   every process that may own its database. Use the bundled removal helper; do
   not broaden its target list or manually delete imported external paths.
 
@@ -20,9 +23,9 @@ python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   format --file <owner.nost> --project <src> --check
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  sync --project <src> --database <src>/<skills.database> --format json
+  sync --project <src> --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  check --database <src>/<skills.database> --format json
+  doctor --project <src> --format json
 ```
 
 The first command emits canonical source to stdout and never mutates the input. Capture that complete stdout as the candidate; do not use an unpinned `nostdb` executable.

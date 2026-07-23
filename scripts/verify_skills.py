@@ -214,8 +214,8 @@ def verify_runtime_copies() -> int:
 def verify_fixture() -> int:
     fixture = ROOT / "tests" / "fixtures" / "portable"
     manifest = json.loads((fixture / "fixture.json").read_text(encoding="utf-8"))
-    required = {"core_version", "layout", "module_id", "source_path"}
-    if set(manifest) != required or manifest["layout"] != "centralized":
+    required = {"core_version", "module_id", "source_path"}
+    if set(manifest) != required:
         raise VerificationError("portable fixture manifest is invalid")
     source = (fixture / "source.nost").read_text(encoding="utf-8")
     if "@provenance" not in source:

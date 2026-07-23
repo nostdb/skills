@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from nostdb_config import ConfigError, skill_values
+from nostdb_config import ConfigError, configured_database as project_database
 from nostdb_provider import (
     CoreProvider,
     CoreResolutionError,
@@ -111,7 +111,8 @@ def safe_command(arguments: List[str], database: Path) -> List[str]:
 
 def existing_database(path: Path) -> Path:
     absolute = path.absolute()
-    if absolute.is_symlink() or absolute.suffix != ".nostdb" or not absolute.is_file():
+    is_database = absolute.name == ".nostdb" or absolute.suffix == ".nostdb"
+    if absolute.is_symlink() or not is_database or not absolute.is_file():
         raise VisualizationError(
             "--database must name one existing non-symlink .nostdb file"
         )
@@ -136,7 +137,7 @@ def provider_json(
 ) -> dict:
     configured_database = None
     if project is not None:
-        configured_database = skill_values(project).get("database")
+        configured_database = project_database(project)
     return {
         "binary": provider.binary,
         "command": provider.command,

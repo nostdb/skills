@@ -29,6 +29,27 @@ def read_text(project: Path) -> str:
         raise ConfigError("cannot read {}: {}".format(path, error)) from error
 
 
+def project_document(project: Path) -> dict:
+    """Read one object-root project configuration."""
+
+    try:
+        document = json.loads(read_text(project))
+    except json.JSONDecodeError as error:
+        raise ConfigError("nostdb.json is invalid JSON: {}".format(error)) from error
+    if not isinstance(document, dict):
+        raise ConfigError("nostdb.json must contain an object")
+    return document
+
+
+def configured_database(project: Path) -> str:
+    """Return the required top-level project database root."""
+
+    value = project_document(project).get("root")
+    if not isinstance(value, str):
+        raise ConfigError("nostdb.json is missing top-level root")
+    return validate_root_path(value)
+
+
 def section_values(text: str, section: str) -> Dict[str, str]:
     try:
         document = json.loads(text)
@@ -69,17 +90,9 @@ def validate_core_provider(provider: str) -> str:
     return provider
 
 
-def validate_database_path(value: str) -> str:
-    path = Path(value)
-    if (
-        not value
-        or "\\" in value
-        or path.is_absolute()
-        or ".." in path.parts
-        or "." in path.parts
-        or path.suffix != ".nostdb"
-    ):
-        raise ConfigError("skills.database must be a normalized relative .nostdb path")
+def validate_root_path(value: str) -> str:
+    if value != ".nostdb":
+        raise ConfigError("root must be the project-local .nostdb")
     return value
 
 
@@ -95,6 +108,19 @@ def update_sections(text: str, updates: Dict[str, Dict[str, str]]) -> str:
         if not isinstance(current, dict):
             raise ConfigError("nostdb.json section {} must be an object".format(section))
         current.update(values)
+    return json.dumps(document, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+
+
+def update_values(text: str, updates: dict) -> str:
+    """Update top-level values while preserving unrelated project metadata."""
+
+    try:
+        document = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ConfigError("nostdb.json is invalid JSON: {}".format(error)) from error
+    if not isinstance(document, dict):
+        raise ConfigError("nostdb.json must contain an object")
+    document.update(updates)
     return json.dumps(document, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
 
 
@@ -131,15 +157,3 @@ def validate_module_id(value: str) -> str:
     if canonical != value or parsed.int == 0:
         raise ConfigError("Stable Module ID must be nonzero canonical lowercase UUID text")
     return canonical
-
-
-def layout_source(layout: str) -> str:
-    paths = {
-        "centralized": ".nost/graph.nost",
-        "colocated": "graph.nost",
-        "single": "project.nost",
-    }
-    try:
-        return paths[layout]
-    except KeyError as error:
-        raise ConfigError("unknown source layout: {}".format(layout)) from error
