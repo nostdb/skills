@@ -12,8 +12,8 @@ from typing import List
 
 
 SKILL_NAMES = (
-    "nostos",
-    "nostos-visualize",
+    "nostdb",
+    "nostdb-visualize",
 )
 
 
@@ -53,7 +53,7 @@ def install(project: Path, adapter_directory: str, mode: str, force: bool) -> di
     if existing and not force:
         raise InstallError("refusing to replace existing adapter path: {}".format(existing[0]))
     transaction = Path(
-        tempfile.mkdtemp(prefix=".nostos-install-", dir=str(skills_root))
+        tempfile.mkdtemp(prefix=".nostdb-install-", dir=str(skills_root))
     )
     staged = transaction / "staged"
     backups = transaction / "backups"
@@ -117,5 +117,5 @@ def main(adapter_directory: str) -> int:
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0
     except (InstallError, OSError) as error:
-        print("nostos-skill-installer: {}".format(error), file=sys.stderr)
+        print("nostdb-skill-installer: {}".format(error), file=sys.stderr)
         return 2

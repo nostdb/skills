@@ -42,12 +42,12 @@ def load_manifest(fixture: Path) -> dict:
         or source_path.is_absolute()
         or ".." in source_path.parts
         or "." in source_path.parts
-        or source_path.suffix != ".nostos"
+        or source_path.suffix != ".nostdb"
     ):
-        raise FixtureError("fixture source_path must be a normalized relative .nostos path")
-    source = fixture / "source.nostos"
+        raise FixtureError("fixture source_path must be a normalized relative .nostdb path")
+    source = fixture / "source.nostdb"
     if source.is_symlink() or not source.is_file():
-        raise FixtureError("fixture must contain one regular non-symlink source.nostos")
+        raise FixtureError("fixture must contain one regular non-symlink source.nostdb")
     return manifest
 
 
@@ -75,7 +75,7 @@ def core_command(
 
     command: List[CommandPart] = [
         sys.executable,
-        scripts / "nostos_core.py",
+        scripts / "nostdb_core.py",
         "run",
         "--project",
         project,
@@ -108,10 +108,10 @@ def execute_created(
     """Run a validated fixture inside a newly created disposable output."""
 
     install(output, adapter_directory, "copy", False)
-    scripts = output / adapter_directory / "skills" / "nostos" / "scripts"
+    scripts = output / adapter_directory / "skills" / "nostdb" / "scripts"
     initialize = [
         sys.executable,
-        scripts / "nostos_project.py",
+        scripts / "nostdb_project.py",
         "init",
         "--project",
         output,
@@ -129,7 +129,7 @@ def execute_created(
         initialize.extend(["--core-binary", str(args.binary.resolve())])
     run(initialize)
     source = output / manifest["source_path"]
-    shutil.copyfile(str(fixture / "source.nostos"), str(source))
+    shutil.copyfile(str(fixture / "source.nostdb"), str(source))
     formatted = run(
         core_command(
             scripts,
@@ -245,9 +245,9 @@ def execute_created(
         output
         / adapter_directory
         / "skills"
-        / "nostos-visualize"
+        / "nostdb-visualize"
         / "scripts"
-        / "nostos_core.py",
+        / "nostdb_core.py",
         "run",
     ]
     if args.binary:
@@ -305,5 +305,5 @@ def main(adapter_directory: str) -> int:
         print(json.dumps(execute(adapter_directory, args), sort_keys=True, separators=(",", ":")))
         return 0
     except (FixtureError, OSError, ValueError, KeyError) as error:
-        print("nostos-fixture: {}".format(error), file=sys.stderr)
+        print("nostdb-fixture: {}".format(error), file=sys.stderr)
         return 1

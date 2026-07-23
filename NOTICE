@@ -1,8 +1,11 @@
 skills
 
+Copyright 2026 Jongho Yoo.
+
 Licensed under the Apache License, Version 2.0 (Apache-2.0).
-No final copyright holder or contribution entity has been legally approved.
-External contributions and distribution releases remain closed.
+Jongho Yoo, an individual in the United States, is the copyright holder for the
+original project material. External contributions are not accepted, and
+distribution releases remain closed pending legal review.
 
 Runtime helpers use only the Python standard library and invoke the separately
-licensed public Nostos CLI. They contain no Core code or .ndb writer.
+licensed public NostDB CLI. They contain no Core code or .ndb writer.

@@ -1,3 +1,3 @@
 # People
 
-Alice works with Bob on the NostosDB project.
+Alice works with Bob on the NostDB project.

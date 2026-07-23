@@ -13,11 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LINK_RE = re.compile(r"\[[^]]+]\(([^)]+)\)")
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SKILL_NAMES = (
-    "nostos",
-    "nostos-visualize",
+    "nostdb",
+    "nostdb-visualize",
 )
 RUNTIME_FILES = {
-    "nostos": {
+    "nostdb": {
         "references/core-providers.md",
         "references/ingest.md",
         "references/project.md",
@@ -25,21 +25,21 @@ RUNTIME_FILES = {
         "references/query.md",
         "references/safety.md",
         "references/schema.md",
-        "scripts/nostos_config.py",
-        "scripts/nostos_core.py",
-        "scripts/nostos_provider.py",
-        "scripts/nostos_project.py",
-        "scripts/nostos_provenance.py",
-        "scripts/nostos_skill.py",
-        "scripts/nostos_source.py",
+        "scripts/nostdb_config.py",
+        "scripts/nostdb_core.py",
+        "scripts/nostdb_provider.py",
+        "scripts/nostdb_project.py",
+        "scripts/nostdb_provenance.py",
+        "scripts/nostdb_skill.py",
+        "scripts/nostdb_source.py",
     },
-    "nostos-visualize": {
+    "nostdb-visualize": {
         "references/core-providers.md",
         "references/query.md",
         "references/safety.md",
-        "scripts/nostos_config.py",
-        "scripts/nostos_core.py",
-        "scripts/nostos_provider.py",
+        "scripts/nostdb_config.py",
+        "scripts/nostdb_core.py",
+        "scripts/nostdb_provider.py",
     },
 }
 
@@ -134,7 +134,7 @@ def verify_links() -> int:
 
 def verify_python_safety() -> int:
     count = 0
-    forbidden_imports = {"sqlite3", "rusqlite", "nostos_parser", "nostos_storage"}
+    forbidden_imports = {"sqlite3", "rusqlite", "nostdb_parser", "nostdb_storage"}
     write_calls = {"open", "write_bytes", "write_text", "copy", "copyfile", "replace", "rename"}
     python_files = (
         list((ROOT / "scripts").glob("*.py"))
@@ -165,7 +165,7 @@ def verify_python_safety() -> int:
 
 def verify_runtime_copies() -> int:
     canonical = {
-        "nostos": {
+        "nostdb": {
             **{
                 "references/" + name: ROOT / "references" / name
                 for name in (
@@ -181,22 +181,22 @@ def verify_runtime_copies() -> int:
             **{
                 "scripts/" + name: ROOT / "scripts" / name
                 for name in (
-                    "nostos_config.py",
-                    "nostos_core.py",
-                    "nostos_provider.py",
-                    "nostos_project.py",
-                    "nostos_provenance.py",
-                    "nostos_skill.py",
-                    "nostos_source.py",
+                    "nostdb_config.py",
+                    "nostdb_core.py",
+                    "nostdb_provider.py",
+                    "nostdb_project.py",
+                    "nostdb_provenance.py",
+                    "nostdb_skill.py",
+                    "nostdb_source.py",
                 )
             },
         },
-        "nostos-visualize": {
+        "nostdb-visualize": {
             "references/core-providers.md": ROOT / "references" / "core-providers.md",
             "references/query.md": ROOT / "references" / "visualize-query.md",
-            "scripts/nostos_config.py": ROOT / "scripts" / "nostos_config.py",
-            "scripts/nostos_core.py": ROOT / "scripts" / "nostos_visualize_core.py",
-            "scripts/nostos_provider.py": ROOT / "scripts" / "nostos_provider.py",
+            "scripts/nostdb_config.py": ROOT / "scripts" / "nostdb_config.py",
+            "scripts/nostdb_core.py": ROOT / "scripts" / "nostdb_visualize_core.py",
+            "scripts/nostdb_provider.py": ROOT / "scripts" / "nostdb_provider.py",
         },
     }
     count = 0
@@ -217,7 +217,7 @@ def verify_fixture() -> int:
     required = {"core_version", "layout", "module_id", "source_path"}
     if set(manifest) != required or manifest["layout"] not in {"centralized", "colocated", "single"}:
         raise VerificationError("portable fixture manifest is invalid")
-    source = (fixture / "source.nostos").read_text(encoding="utf-8")
+    source = (fixture / "source.nostdb").read_text(encoding="utf-8")
     if "@provenance" not in source:
         raise VerificationError("portable fixture does not cover provenance")
     return 1
@@ -226,7 +226,7 @@ def verify_fixture() -> int:
 def verify_format() -> int:
     count = 0
     for path in portable_files():
-        if path.name == "LICENSE" or path.suffix not in {".md", ".py", ".json", ".nostos"} and path.name not in {".gitignore"}:
+        if path.name == "LICENSE" or path.suffix not in {".md", ".py", ".json", ".nostdb"} and path.name not in {".gitignore"}:
             continue
         data = path.read_bytes()
         if b"\r" in data or (data and not data.endswith(b"\n")):

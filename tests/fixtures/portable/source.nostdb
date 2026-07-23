@@ -1,0 +1,26 @@
+schema Person {
+  name: string
+
+  constraints {
+    required name
+  }
+}
+
+schema WORKS_WITH {
+  since: integer
+}
+
+// @provenance {"kind":"document","locator":"People paragraph 1","sha256":"f7beae649542ed3be8a980148d89aad89cc7e8ad2f69d6f2d92a57ae0156b2bb","source":"tests/fixtures/portable/inputs/people.md"}
+node alice: Person {
+  name: "Alice"
+}
+
+// @provenance {"kind":"document","locator":"People paragraph 1","sha256":"f7beae649542ed3be8a980148d89aad89cc7e8ad2f69d6f2d92a57ae0156b2bb","source":"tests/fixtures/portable/inputs/people.md"}
+node bob: Person {
+  name: "Bob"
+}
+
+// @provenance {"kind":"document","locator":"People paragraph 1","sha256":"f7beae649542ed3be8a980148d89aad89cc7e8ad2f69d6f2d92a57ae0156b2bb","source":"tests/fixtures/portable/inputs/people.md"}
+edge alice -> bob: WORKS_WITH {
+  since: 2026
+}

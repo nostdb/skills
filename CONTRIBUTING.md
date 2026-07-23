@@ -1,5 +1,13 @@
-# Contributing to skills
+# Contribution policy for skills
 
-The Skill sources are available for evaluation, but external contributions are closed pending legal/CLA approval. Do not submit workflows, fixtures, patches, or pull requests expecting inclusion; [CLA.md](CLA.md) is status only.
+The Skill sources are available for evaluation, but external contributions are
+not accepted. This is the repository's operating model, not a temporary legal
+hold. Do not submit workflows, fixtures, documentation, patches, or pull
+requests expecting review or inclusion.
 
-Use [SECURITY.md](SECURITY.md) for vulnerabilities. Prospective contributors can run [README verification](README.md#verify). When intake opens, each skills.sh installation unit must remain independently complete, duplicated support bytes must stay synchronized, and all deterministic graph behavior must continue through the public CLI/Core boundary.
+Use [SECURITY.md](SECURITY.md) for vulnerabilities. Public feedback must not
+include proposed implementation content or private data and is not a
+contribution grant. Only work authored or commissioned by copyright holder
+Jongho Yoo under an appropriate written rights arrangement may be added. No
+public CLA or DCO intake is offered; see [CLA.md](CLA.md). You may run
+[README verification](README.md#verify) when evaluating the current source.

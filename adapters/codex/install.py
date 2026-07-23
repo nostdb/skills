@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the canonical Nostos Skills into .agents/skills."""
+"""Install the canonical NostDB Skills into .agents/skills."""
 
 import sys
 from pathlib import Path
