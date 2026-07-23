@@ -111,9 +111,9 @@ def safe_command(arguments: List[str], database: Path) -> List[str]:
 
 def existing_database(path: Path) -> Path:
     absolute = path.absolute()
-    if absolute.is_symlink() or absolute.suffix != ".ndb" or not absolute.is_file():
+    if absolute.is_symlink() or absolute.suffix != ".nostdb" or not absolute.is_file():
         raise VisualizationError(
-            "--database must name one existing non-symlink .ndb file"
+            "--database must name one existing non-symlink .nostdb file"
         )
     return absolute.resolve()
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hash or conflict-safely install one complete canonical .nostdb file."""
+"""Hash or conflict-safely install one complete canonical .nost file."""
 
 import argparse
 import hashlib
@@ -21,8 +21,8 @@ class SourceError(RuntimeError):
 
 
 def read_source(path: Path) -> bytes:
-    if path.is_symlink() or path.suffix != ".nostdb" or not path.is_file():
-        raise SourceError("source target must be one existing non-symlink .nostdb file")
+    if path.is_symlink() or path.suffix != ".nost" or not path.is_file():
+        raise SourceError("source target must be one existing non-symlink .nost file")
     data = path.read_bytes()
     try:
         data.decode("utf-8")
@@ -62,8 +62,8 @@ def install(
     candidate = candidate.resolve()
     if not DIGEST_RE.fullmatch(expected):
         raise SourceError("--expected-sha256 must be 64 lowercase hexadecimal characters")
-    if candidate.suffix == ".ndb" or not candidate.is_file():
-        raise SourceError("candidate must be a regular text file and never an .ndb file")
+    if candidate.suffix == ".nostdb" or not candidate.is_file():
+        raise SourceError("candidate must be a regular text file and never an .nostdb file")
     replacement = candidate.read_bytes()
     try:
         replacement.decode("utf-8")
@@ -71,7 +71,7 @@ def install(
         raise SourceError("candidate is not UTF-8") from error
     if replacement and not replacement.endswith(b"\n"):
         raise SourceError("candidate must end with a newline")
-    lock_path = target.with_name("." + target.name + ".nostdb-lock")
+    lock_path = target.with_name("." + target.name + ".nost-lock")
     try:
         lock_descriptor = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError as error:
@@ -86,15 +86,15 @@ def install(
         os.fsync(lock_file.fileno())
     temporary_path = None
     try:
-        if target.is_symlink() or target.suffix != ".nostdb":
-            raise SourceError("source target must be one existing non-symlink .nostdb file")
+        if target.is_symlink() or target.suffix != ".nost":
+            raise SourceError("source target must be one existing non-symlink .nost file")
         with target.open("rb") as original_file:
             original_stat = os.fstat(original_file.fileno())
             original = original_file.read()
             if digest(original) != expected:
                 raise SourceError("source conflict: {} changed before installation".format(target))
             mode = original_stat.st_mode & 0o777
-            temporary_path = temporary_bytes(target.parent, ".nostdb-source-", replacement, mode)
+            temporary_path = temporary_bytes(target.parent, ".nost-source-", replacement, mode)
             with target.open("rb") as checked_file:
                 checked_stat = os.fstat(checked_file.fileno())
                 checked_content = checked_file.read()
@@ -134,7 +134,7 @@ def install(
                 if digest(raced_content) != expected:
                     if digest(read_source(target)) == digest(replacement):
                         restore = temporary_bytes(
-                            target.parent, ".nostdb-restore-", raced_content, mode
+                            target.parent, ".nost-restore-", raced_content, mode
                         )
                         try:
                             os.replace(str(restore), str(target))
@@ -153,9 +153,9 @@ def install(
 
 def unlock(target: Path) -> dict:
     target = target.absolute()
-    if target.suffix != ".nostdb":
-        raise SourceError("source target must end in .nostdb")
-    lock_path = target.with_name("." + target.name + ".nostdb-lock")
+    if target.suffix != ".nost":
+        raise SourceError("source target must end in .nost")
+    lock_path = target.with_name("." + target.name + ".nost-lock")
     try:
         owner = json.loads(lock_path.read_text(encoding="utf-8"))
         host = owner["host"]

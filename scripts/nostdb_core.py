@@ -22,11 +22,11 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     locate = commands.add_parser("resolve", help="print the compatible CLI provider")
-    locate.add_argument("--project", type=Path, required=True)
+    locate.add_argument("--src", type=Path, required=True)
     locate.add_argument("--binary")
     locate.add_argument("--json", action="store_true")
     run = commands.add_parser("run", help="run the compatible CLI provider")
-    run.add_argument("--project", type=Path, required=True)
+    run.add_argument("--src", type=Path, required=True)
     run.add_argument("--binary")
     run.add_argument("arguments", nargs=argparse.REMAINDER)
     return root
@@ -35,10 +35,10 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = parser().parse_args()
     try:
-        provider = resolve_provider(args.project, args.binary)
+        provider = resolve_provider(args.src, args.binary)
         if args.command == "resolve":
             if args.json:
-                print(json.dumps(provider_payload(provider, args.project), sort_keys=True))
+                print(json.dumps(provider_payload(provider, args.src), sort_keys=True))
             elif provider.binary:
                 print(provider.binary)
             else:

@@ -53,7 +53,7 @@ def install(project: Path, adapter_directory: str, mode: str, force: bool) -> di
     if existing and not force:
         raise InstallError("refusing to replace existing adapter path: {}".format(existing[0]))
     transaction = Path(
-        tempfile.mkdtemp(prefix=".nostdb-install-", dir=str(skills_root))
+        tempfile.mkdtemp(prefix=".nost-install-", dir=str(skills_root))
     )
     staged = transaction / "staged"
     backups = transaction / "backups"

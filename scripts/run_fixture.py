@@ -33,8 +33,8 @@ def load_manifest(fixture: Path) -> dict:
         raise FixtureError("fixture manifest must contain exactly {}".format(sorted(required)))
     if any(not isinstance(manifest[key], str) for key in required):
         raise FixtureError("fixture manifest values must be strings")
-    if manifest["layout"] not in {"centralized", "colocated", "single"}:
-        raise FixtureError("fixture manifest layout is invalid")
+    if manifest["layout"] != "centralized":
+        raise FixtureError("fixture manifest layout must be centralized")
     source_path = Path(manifest["source_path"])
     if (
         not manifest["source_path"]
@@ -42,12 +42,12 @@ def load_manifest(fixture: Path) -> dict:
         or source_path.is_absolute()
         or ".." in source_path.parts
         or "." in source_path.parts
-        or source_path.suffix != ".nostdb"
+        or source_path.suffix != ".nost"
     ):
-        raise FixtureError("fixture source_path must be a normalized relative .nostdb path")
-    source = fixture / "source.nostdb"
+        raise FixtureError("fixture source_path must be a normalized relative .nost path")
+    source = fixture / "source.nost"
     if source.is_symlink() or not source.is_file():
-        raise FixtureError("fixture must contain one regular non-symlink source.nostdb")
+        raise FixtureError("fixture must contain one regular non-symlink source.nost")
     return manifest
 
 
@@ -77,7 +77,7 @@ def core_command(
         sys.executable,
         scripts / "nostdb_core.py",
         "run",
-        "--project",
+        "--src",
         project,
     ]
     if binary:
@@ -113,10 +113,8 @@ def execute_created(
         sys.executable,
         scripts / "nostdb_project.py",
         "init",
-        "--project",
+        "--src",
         output,
-        "--layout",
-        manifest["layout"],
         "--core-version",
         manifest["core_version"],
         "--core-provider",
@@ -129,7 +127,7 @@ def execute_created(
         initialize.extend(["--core-binary", str(args.binary.resolve())])
     run(initialize)
     source = output / manifest["source_path"]
-    shutil.copyfile(str(fixture / "source.nostdb"), str(source))
+    shutil.copyfile(str(fixture / "source.nost"), str(source))
     formatted = run(
         core_command(
             scripts,
@@ -145,7 +143,7 @@ def execute_created(
         )
     )
     source.write_bytes(formatted)
-    database = output / "graph.ndb"
+    database = output / "graph.nostdb"
     run(
         core_command(
             scripts,

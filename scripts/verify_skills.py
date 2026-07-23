@@ -154,11 +154,11 @@ def verify_python_safety() -> int:
                 function = node.func.attr if isinstance(node.func, ast.Attribute) else node.func.id if isinstance(node.func, ast.Name) else ""
                 if function in write_calls:
                     for argument in node.args:
-                        if isinstance(argument, ast.Constant) and isinstance(argument.value, str) and argument.value.endswith(".ndb"):
-                            raise VerificationError("{} directly writes an .ndb path".format(path))
+                        if isinstance(argument, ast.Constant) and isinstance(argument.value, str) and argument.value.endswith(".nostdb"):
+                            raise VerificationError("{} directly writes an .nostdb path".format(path))
         for line in path.read_text(encoding="utf-8").splitlines():
-            if ".ndb" in line and any(token in line for token in ("write_bytes", "write_text", "copyfile", "sqlite")):
-                raise VerificationError("{} contains a direct .ndb write".format(path))
+            if ".nostdb" in line and any(token in line for token in ("write_bytes", "write_text", "copyfile", "sqlite")):
+                raise VerificationError("{} contains a direct .nostdb write".format(path))
         count += 1
     return count
 
@@ -215,9 +215,9 @@ def verify_fixture() -> int:
     fixture = ROOT / "tests" / "fixtures" / "portable"
     manifest = json.loads((fixture / "fixture.json").read_text(encoding="utf-8"))
     required = {"core_version", "layout", "module_id", "source_path"}
-    if set(manifest) != required or manifest["layout"] not in {"centralized", "colocated", "single"}:
+    if set(manifest) != required or manifest["layout"] != "centralized":
         raise VerificationError("portable fixture manifest is invalid")
-    source = (fixture / "source.nostdb").read_text(encoding="utf-8")
+    source = (fixture / "source.nost").read_text(encoding="utf-8")
     if "@provenance" not in source:
         raise VerificationError("portable fixture does not cover provenance")
     return 1
@@ -226,7 +226,7 @@ def verify_fixture() -> int:
 def verify_format() -> int:
     count = 0
     for path in portable_files():
-        if path.name == "LICENSE" or path.suffix not in {".md", ".py", ".json", ".nostdb"} and path.name not in {".gitignore"}:
+        if path.name == "LICENSE" or path.suffix not in {".md", ".py", ".json", ".nost"} and path.name not in {".gitignore"}:
             continue
         data = path.read_bytes()
         if b"\r" in data or (data and not data.endswith(b"\n")):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Expose deterministic help and initialization actions for the nostdb Skill."""
+"""Expose deterministic help, initialization, and removal for the nostdb Skill."""
 
 import subprocess
 import sys
@@ -11,21 +11,25 @@ HELP = """NostDB Skill
 
 Usage:
   nostdb help
-  nostdb init --project PATH --layout centralized|colocated|single [options]
+  nostdb init --src PATH [options]
+  nostdb remove --src PATH [--dry-run]
   nostdb <natural-language task>
 
 Actions:
-  help  Show this action summary without inspecting or changing a project.
-  init  Initialize one guarded Source Mode project through nostdb_project.py.
+  help    Show this action summary without inspecting or changing a source root.
+  init    Initialize one guarded centralized Source Mode project.
+  remove  Delete NostDB configuration, sources, databases, and sidecars below
+          one explicitly selected source root.
 
 Init defaults:
   --core-version 0.0.1
   --core-provider auto
-  --database graph.ndb
+  --database graph.nostdb
 
 Use --allow-nonempty only after confirming the destination is the intended
-existing project. Initialization never replaces nostdb.toml or the selected
-source entry.
+existing project. Initialization never replaces nostdb.json or the selected
+source entry. Removal refuses broad roots, symlink boundaries, and an open
+database; use --dry-run to inspect its complete target list without deleting.
 """
 
 
@@ -36,23 +40,23 @@ def main(arguments: Optional[List[str]] = None) -> int:
     if not values or values[0] in {"help", "-h", "--help"}:
         print(HELP, end="")
         return 0
-    if values[0] == "init":
+    if values[0] in {"init", "remove"}:
         helper = Path(__file__).resolve().with_name("nostdb_project.py")
         try:
             completed = subprocess.run(
-                [sys.executable, str(helper), "init"] + values[1:],
+                [sys.executable, str(helper), values[0]] + values[1:],
                 check=False,
             )
         except OSError as error:
             print(
-                "nostdb-skill: cannot run initialization helper: {}".format(error),
+                "nostdb-skill: cannot run project helper: {}".format(error),
                 file=sys.stderr,
             )
             return 3
         return completed.returncode
     print(
-        "nostdb-skill: unknown action {!r}; use 'help' or describe the NostDB task"
-        .format(values[0]),
+        "nostdb-skill: unknown action {!r}; use 'help', 'init', 'remove', or "
+        "describe the NostDB task".format(values[0]),
         file=sys.stderr,
     )
     return 2

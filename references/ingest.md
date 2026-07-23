@@ -8,4 +8,4 @@
 6. Preserve comments, produce a complete candidate, canonicalize it through the pinned CLI, and install it with the hash-guarded `nostdb_source.py` workflow.
 7. Synchronize, inspect `warnings` and `unresolved`, and review the source diff before accepting the result.
 
-Never write `.ndb`; synchronization belongs exclusively to the pinned CLI.
+Never write `.nostdb`; synchronization belongs exclusively to the pinned CLI.

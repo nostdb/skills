@@ -1,13 +1,13 @@
 # Read-only visualization query boundary
 
-The visualization wrapper exposes only query, inspect, stats, schema, unresolved, and check against one existing .ndb. It rejects synchronization, source commands, remote or database administration, interactive input, query files, and arbitrary CLI passthrough.
+The visualization wrapper exposes only query, inspect, stats, schema, unresolved, and check against one existing .nostdb. It rejects synchronization, source commands, remote or database administration, interactive input, query files, and arbitrary CLI passthrough.
 
-For a standalone NDB-only database, no nostdb.toml is needed. Explicitly authorize the reviewed binary and database:
+For a standalone NDB-only database, no nostdb.json is needed. Explicitly authorize the reviewed binary and database:
 
     python3 <skill-root>/scripts/nostdb_core.py resolve \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.ndb --json
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.nostdb --json
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.ndb -- \
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.nostdb -- \
       query --read-only \
       'MATCH (n) RETURN id(n) AS internal_id, n ORDER BY internal_id LIMIT 101' \
       --format json
@@ -27,10 +27,10 @@ Start with a declared display bound such as 100, query in deterministic order, a
 Inspection uses the same explicit database boundary:
 
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.ndb -- \
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.nostdb -- \
       inspect --format json
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.ndb -- \
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/graph.nostdb -- \
       unresolved --format json
 
-source_managed: true means the database was materialized from Source Mode; visualization still reads the existing .ndb without synchronizing it. Use RETURN DISTINCT id(n) AS internal_id, ... ORDER BY ..., internal_id when a database-local tie-breaker is required. Internal IDs are query-visible correlation keys, not permanent external identity.
+source_managed: true means the database was materialized from Source Mode; visualization still reads the existing .nostdb without synchronizing it. Use RETURN DISTINCT id(n) AS internal_id, ... ORDER BY ..., internal_id when a database-local tie-breaker is required. Internal IDs are query-visible correlation keys, not permanent external identity.

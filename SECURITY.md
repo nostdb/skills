@@ -5,7 +5,7 @@ There is no supported Skill release. Current workflows/installers are evaluation
 Privately report prompt/workflow injection that crosses documented authority,
 unsafe target/path or symlink handling, source-conflict bypass, provenance
 spoofing, divergence between bundled Skill support copies, credential
-disclosure, or direct `.ndb` mutation through **Security → Report a
+disclosure, or direct `.nostdb` mutation through **Security → Report a
 vulnerability**. Private reporting was externally checked as enabled on
 2026-07-23. If absent, request re-enablement publicly without details and wait.
 

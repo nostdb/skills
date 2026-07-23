@@ -10,14 +10,14 @@ from pathlib import Path
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project", type=Path, required=True)
+    parser.add_argument("--src", type=Path, required=True)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--kind", choices=("document", "code"), required=True)
     parser.add_argument("--locator", required=True)
     parser.add_argument("--source-label")
     parser.add_argument("--expected-sha256")
     args = parser.parse_args()
-    project = args.project.resolve()
+    project = args.src.resolve()
     source = args.source.resolve()
     try:
         payload = source.read_bytes()

@@ -2,8 +2,8 @@
 
 The general `nostdb` Skill and the separate `nostdb-visualize` Skill load only the reference needed for a task:
 
-- `safety.md`: authority, source-editing, and `.ndb` boundaries
-- `project.md`: layouts, `nostdb.toml`, and Core pinning
+- `safety.md`: authority, source-editing, and `.nostdb` boundaries
+- `project.md`: layouts, `nostdb.json`, and Core pinning
 - `core-providers.md`: installed-first and pinned-npx fallback contract
 - `schema.md`: Schema and hard-Constraint evolution workflow
 - `ingest.md`: document/code extraction and guarded source installation

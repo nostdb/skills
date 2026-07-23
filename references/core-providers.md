@@ -2,7 +2,7 @@
 
 Status: implemented provider contract.
 
-Skills never reimplement Core behavior. Every format, sync, validation, query, inspection, and `.ndb` operation delegates to the official `nostdb` CLI. That executable already contains the Rust Core implementation, so no separate Core package or service is installed.
+Skills never reimplement Core behavior. Every format, sync, validation, query, inspection, and `.nostdb` operation delegates to the official `nostdb` CLI. That executable already contains the Rust Core implementation, so no separate Core package or service is installed.
 
 ## Provider contract
 
@@ -21,11 +21,8 @@ Native resolution order is an explicit `--binary`, `NOSTDB_BIN`, then `nostdb` o
 
 The project policy is:
 
-```toml
-[skills]
-core_version = "0.0.1"
-database = "graph.ndb"
-core_provider = "auto" # auto | installed | npx
+```json
+{"skills":{"core_version":"0.0.1","database":"graph.nostdb","core_provider":"auto"}}
 ```
 
 - `installed`: use native resolution only and never initiate a network fallback.
@@ -35,16 +32,23 @@ core_provider = "auto" # auto | installed | npx
 
 The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper never uses `latest` or a version range. npx requires the command plus network access or a usable npm cache; failure reports the pinned version and installation alternatives without weakening the version check.
 
-The `@nostdb/cli` package is not published during the current source preview. Build the sibling CLI repository, select `core_provider = "installed"`, and export its reviewed absolute path through `NOSTDB_BIN` before invoking the wrapper. A matching `core_binary` value may also be recorded during initialization, but remains non-authoritative metadata:
+The unsupported `@nostdb/cli@0.0.1` package is published under `latest` and
+`next`. The `auto` and `npx` policies still invoke the exact version recorded in
+`skills.core_version`, never a dist-tag. For a source-built or network-free
+provider, build the sibling CLI repository, select `core_provider =
+"installed"`, and export its reviewed absolute path through `NOSTDB_BIN`. A
+matching `core_binary` value may also be recorded during initialization, but
+remains non-authoritative metadata:
 
 ```bash
 cargo build --manifest-path ../nostdb-cli/Cargo.toml --locked
 export NOSTDB_BIN="$PWD/../nostdb-cli/target/debug/nostdb"
-python3 <skill-root>/scripts/nostdb_core.py resolve \
-  --project <installed-provider-project> --json
 ```
 
-When initializing through the `nostdb` Skill, pass `--core-provider installed --core-binary "$NOSTDB_BIN"`; the latter records the reviewed path but does not replace the environment authorization.
+Resolve through the selected Skill's documented source-root interface. When
+initializing through the `nostdb` Skill, pass `--core-provider installed
+--core-binary "$NOSTDB_BIN"`; the latter records the reviewed path but does not
+replace the environment authorization.
 
 ## Required implementation tests
 

@@ -8,4 +8,4 @@ original project material. External contributions are not accepted, and
 distribution releases remain closed pending legal review.
 
 Runtime helpers use only the Python standard library and invoke the separately
-licensed public NostDB CLI. They contain no Core code or .ndb writer.
+licensed public NostDB CLI. They contain no Core code or .nostdb writer.

@@ -8,7 +8,9 @@ Start with the Root [user guide](https://github.com/nostdb/nostdb/blob/main/docs
 
 Two canonical Agent Skills provide the public surface:
 
-- `nostdb` is the default entry point for `help`, guarded project `init`, deterministic Core commands, Schema evolution, ingestion, and exploration.
+- `nostdb` is the default entry point for `help`, guarded centralized `init`,
+  project-local `remove`, deterministic Core commands, Schema evolution,
+  ingestion, and exploration.
 - `nostdb-visualize` is the separate graph-representation workflow for reviewable diagrams and visualization datasets.
 
 Users do not choose separate Core, Schema, ingestion, exploration, or orchestration Skills. The accepted Stage 13 contract requires each Skill to contain its own references and deterministic helpers so either one can be installed and operated independently.
@@ -28,24 +30,29 @@ Install only `nostdb` when visualization is not needed, or only `nostdb-visualiz
 
 The downloaded Skill directory does not require this repository checkout, a sibling `references/` or `scripts/` directory, the other NostDB Skill, a particular agent-specific parent path, or a particular current working directory.
 
-After the agent activates the Skill, `nostdb help` returns the supported action summary without requiring a project, and `nostdb init` collects the project/layout inputs and invokes the bundled guarded initializer. These are Agent Skill actions, not additional subcommands of the native `nostdb` CLI.
+After the agent activates the Skill, `nostdb help` returns the supported action
+summary without requiring a source root, `nostdb init` creates the fixed
+centralized layout, and `nostdb remove` deletes recognized project-local NostDB
+files below one explicitly selected root. These are Agent Skill actions, not
+additional subcommands of the native `nostdb` CLI.
 
 ## Source-preview quickstart
 
-The CLI packages are not published yet, so the working preview path uses an explicitly authorized source-built binary. From this repository with `nostdb-cli` and `nostdb-core` checked out as siblings:
+For source development with an explicitly authorized binary, use this
+repository with `nostdb-cli` and `nostdb-core` checked out as siblings:
 
 ```bash
 cargo build --manifest-path ../nostdb-cli/Cargo.toml --locked
 export NOSTDB_BIN="$PWD/../nostdb-cli/target/debug/nostdb"
-export NOSTDB_PROJECT="$PWD/../nostdb-preview"
+export NOSTDB_SRC="$PWD/../nostdb-preview"
 python3 skills/nostdb/scripts/nostdb_skill.py init \
-  --project "$NOSTDB_PROJECT" --layout centralized --core-provider installed \
+  --src "$NOSTDB_SRC" --core-provider installed \
   --core-binary "$NOSTDB_BIN"
 python3 skills/nostdb/scripts/nostdb_core.py resolve \
-  --project "$NOSTDB_PROJECT" --json
+  --src "$NOSTDB_SRC" --json
 ```
 
-`--core-binary` records the reviewed path as project metadata. Because `nostdb.toml` is project-controlled input, that value is never executed automatically; keep `NOSTDB_BIN` set for the agent session or pass `--binary PATH` to each wrapper invocation. Otherwise resolution uses `nostdb` from the user's `PATH`.
+`--core-binary` records the reviewed path as project metadata. Because `nostdb.json` is project-controlled input, that value is never executed automatically; keep `NOSTDB_BIN` set for the agent session or pass `--binary PATH` to each wrapper invocation. Otherwise resolution uses `nostdb` from the user's `PATH`.
 
 ## CLI provider
 
@@ -56,9 +63,23 @@ Skill installation and CLI execution are separate uses of `npx`:
 - `npx skills add ...` downloads an Agent Skill from this GitHub repository.
 - `npx --package=@nostdb/cli@VERSION nostdb ...` runs the Core-containing CLI selected by the Skill.
 
-The `@nostdb/cli` package is not published in the current source preview. Until publication, `auto` without an installed CLI and the `npx` policy fail explicitly. Preview evaluation must use the installed-provider workflow above with an exactly matching source-built `nostdb` binary. The wrapper never falls back to `latest` or a version range.
+The unsupported `@nostdb/cli@0.0.1` package is published under `latest` and
+`next`, so `auto` can use its exact-version npx fallback. Use `installed` with
+an exactly matching source-built or global `nostdb` binary when execution must
+remain network-free. The wrapper never falls back to a dist-tag or version
+range.
 
-Skills may write complete canonical `.nostdb` files and invoke supported CLI commands. They never parse, generate, patch, or decode `.ndb` directly.
+Skills may write complete canonical `.nost` files and invoke supported CLI commands. They never parse, generate, patch, or decode `.nostdb` directly.
+
+Remove a Skill-managed source project after reviewing the exact root and
+stopping any database owner:
+
+```bash
+python3 skills/nostdb/scripts/nostdb_skill.py remove --src "$NOSTDB_SRC"
+```
+
+Add `--dry-run` to list every target without deleting it. Unrelated files in
+the source root are preserved.
 
 ## Verify
 
