@@ -52,8 +52,9 @@ The wrapper invokes native `nostdb init`, then adds Agent provider metadata:
 ```
 
 `skills.core_binary` is project-owned metadata and never automatic execution
-authority. An explicit wrapper `--binary`, `NOSTDB_BIN`, then the user's
-`PATH` are checked in that order. The wrapper requires exact
+authority. An explicit wrapper `--binary`, `NOSTDB_BIN`, then the `nostdb`
+command are checked in that order. The ordinary command is executed directly
+without retaining its resolved path, and every selection requires exact
 `nostdb --version` equality.
 
 To expose canonical source:

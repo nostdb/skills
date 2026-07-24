@@ -28,6 +28,10 @@ class CoreResolutionError(RuntimeError):
     """A missing or incompatible public CLI boundary."""
 
 
+class CommandUnavailable(RuntimeError):
+    """The ordinary installed command cannot be executed."""
+
+
 class CoreProvider(NamedTuple):
     """One shell-free command prefix for invoking the pinned CLI."""
 
@@ -38,25 +42,29 @@ class CoreProvider(NamedTuple):
 
     @property
     def binary(self) -> Optional[str]:
-        """Return the native binary path, or None for npx."""
+        """Return the native command selector, or None for npx."""
 
         return self.binary_path
 
 
 def native_candidate(explicit: Optional[str]) -> Optional[Path]:
-    """Select one native candidate without validating its version."""
+    """Select one explicitly authorized native path."""
 
     selected = explicit or os.environ.get("NOSTDB_BIN")
-    if selected:
-        candidate = Path(selected)
-        if not candidate.is_absolute():
-            candidate = Path.cwd() / candidate
-        return candidate.resolve()
-    located = shutil.which("nostdb")
-    return Path(located).resolve() if located else None
+    if not selected:
+        return None
+    candidate = Path(selected)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    return candidate.resolve()
 
 
-def checked_version(command: Sequence[str], expected: str, label: str) -> None:
+def checked_version(
+    command: Sequence[str],
+    expected: str,
+    label: str,
+    unavailable_is_missing: bool = False,
+) -> None:
     """Require one command prefix to report the exact pinned version."""
 
     try:
@@ -68,6 +76,10 @@ def checked_version(command: Sequence[str], expected: str, label: str) -> None:
             text=True,
             timeout=120,
         )
+    except FileNotFoundError as error:
+        if unavailable_is_missing:
+            raise CommandUnavailable(label) from error
+        raise CoreResolutionError("cannot execute {}: {}".format(label, error)) from error
     except (OSError, subprocess.TimeoutExpired) as error:
         raise CoreResolutionError("cannot execute {}: {}".format(label, error)) from error
     output = completed.stdout.strip()
@@ -96,6 +108,37 @@ def native_provider(candidate: Path, expected: str) -> CoreProvider:
     command = native_command(candidate)
     checked_version(command, expected, str(candidate))
     return CoreProvider("native", command, expected, str(candidate))
+
+
+def installed_command(windows: Optional[bool] = None) -> List[str]:
+    """Return the ordinary installed command without resolving its POSIX path."""
+
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows:
+        return ["nostdb"]
+    located = shutil.which("nostdb")
+    if located is None:
+        return []
+    return native_command(Path(located), windows=True)
+
+
+def installed_provider(expected: str) -> Optional[CoreProvider]:
+    """Validate whether the ordinary `nostdb` command is usable."""
+
+    command = installed_command()
+    if not command:
+        return None
+    try:
+        checked_version(
+            command,
+            expected,
+            "nostdb command",
+            unavailable_is_missing=True,
+        )
+    except CommandUnavailable:
+        return None
+    return CoreProvider("native", command, expected, "nostdb")
 
 
 def native_command(candidate: Path, windows: Optional[bool] = None) -> List[str]:
@@ -204,11 +247,15 @@ def resolve_requested_provider(
     candidate = native_candidate(explicit)
     if candidate is not None:
         return native_provider(candidate, expected)
+    installed = installed_provider(expected)
+    if installed is not None:
+        return installed
     if policy == "auto":
         return npx_provider(expected)
     raise CoreResolutionError(
-        "cannot locate nostdb {}; pass a reviewed binary with --binary, set "
-        "NOSTDB_BIN, or put nostdb on PATH; skills.core_binary is metadata only "
+        "cannot execute nostdb {}; pass a reviewed binary with --binary, set "
+        "NOSTDB_BIN, or make the nostdb command available on PATH; "
+        "skills.core_binary is metadata only "
         "and is never executed automatically, or configure skills.core_provider "
         "= \"auto\" for pinned npx fallback"
         .format(expected)

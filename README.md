@@ -61,11 +61,17 @@ python3 skills/nostdb/scripts/nostdb_core.py resolve \
 `.nostdb/settings.json` is project-controlled input, that value is never
 executed automatically; keep `NOSTDB_BIN` set for the agent session or pass
 `--binary PATH` to each wrapper invocation. Otherwise resolution uses
-`nostdb` from the user's `PATH`.
+the `nostdb` command from the user's `PATH` without expanding it to a retained
+filesystem path.
 
 ## CLI provider
 
-The initializer supports `auto`, `installed`, and `npx` provider policies. Use `installed` for the current source preview. `auto` first selects an explicitly authorized or `PATH`-installed `nostdb` whose version exactly matches `skills.core_version`; if none exists, it runs the exact `@nostdb/cli@skills.core_version` package through `npx`. `installed` forbids that network fallback, while `npx` requires the pinned zero-install provider.
+The initializer supports `auto`, `installed`, and `npx` provider policies. Use
+`installed` for the current source preview. `auto` first runs an explicitly
+authorized binary or the `nostdb` command and requires an exact
+`skills.core_version` match; if the command is unavailable, it runs the exact
+`@nostdb/cli@skills.core_version` package through `npx`. `installed` forbids
+that network fallback, while `npx` requires the pinned zero-install provider.
 
 Skill installation and CLI execution are separate uses of `npx`:
 

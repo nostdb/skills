@@ -18,6 +18,7 @@ import install_adapter as adapter_module  # noqa: E402
 from install_adapter import install as adapter_install  # noqa: E402
 from nostdb_config import ConfigConflictError, atomic_write  # noqa: E402
 from nostdb_core import native_command, npx_command  # noqa: E402
+from nostdb_provider import installed_command  # noqa: E402
 from nostdb_source import (  # noqa: E402
     SourceError,
     digest as source_digest,
@@ -493,9 +494,11 @@ class SkillTests(unittest.TestCase):
         environment.pop("NOSTDB_BIN")
         from_path = invoke(*command, env=environment)
         self.assertEqual(from_path.returncode, 0, from_path.stderr)
-        self.assertEqual(
-            Path(from_path.stdout.strip()), (path_directory / "nostdb").resolve()
-        )
+        self.assertEqual(from_path.stdout.strip(), "nostdb")
+        from_path_json = invoke(*command, "--json", env=environment)
+        self.assertEqual(from_path_json.returncode, 0, from_path_json.stderr)
+        self.assertEqual(json.loads(from_path_json.stdout)["binary"], "nostdb")
+        self.assertEqual(json.loads(from_path_json.stdout)["command"], ["nostdb"])
         self.assertIn("ignoring untrusted skills.core_binary metadata", from_path.stderr)
         self.assertFalse(project_binary_log.exists())
 
@@ -510,7 +513,7 @@ class SkillTests(unittest.TestCase):
         (path_directory / "nostdb").unlink()
         missing = invoke(*command, env=environment)
         self.assertEqual(missing.returncode, 3)
-        self.assertIn("cannot locate nostdb 0.0.3", missing.stderr)
+        self.assertIn("cannot execute nostdb 0.0.3", missing.stderr)
         self.assertIn("skills.core_binary is metadata only", missing.stderr)
         self.assertFalse(project_binary_log.exists())
         self.assertFalse(npx_log.exists())
@@ -705,6 +708,13 @@ class SkillTests(unittest.TestCase):
             npx_command(windows=True, located=str(npx_shim)),
             [str(Path(node).resolve()), str(npx_cli.resolve())],
         )
+
+    def test_posix_installed_detection_uses_the_command_without_path_lookup(self):
+        with mock.patch(
+            "nostdb_provider.shutil.which",
+            side_effect=AssertionError("POSIX detection must not resolve nostdb"),
+        ):
+            self.assertEqual(installed_command(windows=False), ["nostdb"])
 
     def test_auto_does_not_hide_mismatch_and_reports_npx_failures(self):
         project = self.temporary / "auto-errors"
