@@ -18,7 +18,12 @@ code/document project and confirming it is the intended destination, add
 `--allow-nonempty`; existing `nostdb.json` and the root `.nostdb` are never
 replaced.
 
-The helper creates the database through the pinned CLI and writes:
+The wrapper resolves the pinned provider and invokes native
+`nostdb init --project <src>` when that CLI supports it. The CLI creates the
+base configuration and database; the wrapper then adds Agent-specific provider
+metadata. The published Core `0.0.2` predates native `init`, so the wrapper
+retains a compatibility path that creates the same guarded configuration
+in-process and invokes native `sync`:
 
 ```json
 {

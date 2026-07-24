@@ -15,8 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "portable"
 sys.path.insert(0, str(ROOT / "scripts"))
 import install_adapter as adapter_module  # noqa: E402
+import nostdb_skill as skill_module  # noqa: E402
 from install_adapter import install as adapter_install  # noqa: E402
+from nostdb_config import ConfigConflictError, atomic_write  # noqa: E402
 from nostdb_core import native_command, npx_command  # noqa: E402
+from nostdb_provider import CoreProvider  # noqa: E402
 from nostdb_source import (  # noqa: E402
     SourceError,
     digest as source_digest,
@@ -66,6 +69,34 @@ class SkillTests(unittest.TestCase):
             header = text.split("---", 2)[1].strip().splitlines()
             self.assertEqual({line.split(":", 1)[0] for line in header}, {"name", "description"})
             self.assertIn("name: " + name, header)
+
+    def test_configuration_update_rejects_external_edit_conflicts(self):
+        project = self.temporary / "config-conflict"
+        project.mkdir()
+        configuration = project / "nostdb.json"
+        current = '{"nost":false,"nostdb":1,"root":".nostdb"}\n'
+        configuration.write_text(current, encoding="utf-8")
+
+        with self.assertRaisesRegex(ConfigConflictError, "configuration changed"):
+            atomic_write(
+                configuration,
+                '{"nost":false,"nostdb":1,"root":".nostdb","skills":{}}\n',
+                expected_text='{"nost":true,"nostdb":1,"root":".nostdb"}\n',
+            )
+
+        self.assertEqual(configuration.read_text(encoding="utf-8"), current)
+        self.assertEqual(list(project.glob(".nost-config-*")), [])
+
+    def test_published_legacy_npx_init_skips_a_redundant_capability_process(self):
+        provider = CoreProvider(
+            "npx",
+            ["npx", "--package=@nostdb/cli@0.0.2", "nostdb"],
+            "0.0.2",
+            None,
+        )
+        with mock.patch.object(skill_module, "_run") as run:
+            self.assertFalse(skill_module._supports_native_init(provider))
+        run.assert_not_called()
 
     def test_default_project_is_ndb_only_and_core_pin_is_fixed(self):
         project = self.temporary / "default-root"
@@ -1068,25 +1099,29 @@ class SkillTests(unittest.TestCase):
         unrelated_cwd = self.temporary / "unrelated-working-directory"
         unrelated_cwd.mkdir()
         skill_entry = installed["nostdb"] / "scripts" / "nostdb_skill.py"
-        helped = invoke(
-            sys.executable,
-            skill_entry,
-            "help",
-            cwd=unrelated_cwd,
+        skill_instructions = (installed["nostdb"] / "SKILL.md").read_text(
+            encoding="utf-8"
         )
-        self.assertEqual(helped.returncode, 0, helped.stderr)
-        self.assertIn("Usage:\n  nostdb help\n  nostdb init", helped.stdout)
-        self.assertIn("nostdb remove --src PATH", helped.stdout)
-        self.assertIn("--core-provider auto", helped.stdout)
+        self.assertIn("Respond directly from this file without running Python", skill_instructions)
+        self.assertIn("initialization defaults to Core `0.0.2`", skill_instructions)
+        self.assertNotIn("nostdb_skill.py help", skill_instructions)
         self.assertFalse((unrelated_cwd / "nostdb.json").exists())
-        implicit_help = invoke(sys.executable, skill_entry, cwd=unrelated_cwd)
-        self.assertEqual(implicit_help.stdout, helped.stdout)
 
         native = self.temporary / "nostdb-native"
         native.write_text(
             "#!{}\nimport json, pathlib, sys\n"
             "if sys.argv[1:] == ['--version']:\n"
             "    print('nostdb 0.0.2')\n"
+            "elif sys.argv[1:] == ['init', '--help']:\n"
+            "    print('Usage: nostdb init --project PATH')\n"
+            "elif sys.argv[1:2] == ['init']:\n"
+            "    project = pathlib.Path(sys.argv[sys.argv.index('--project') + 1])\n"
+            "    project.mkdir(parents=True, exist_ok=True)\n"
+            "    (project / 'nostdb.json').write_text(json.dumps({{\n"
+            "        'nostdb': 1, 'root': '.nostdb', 'nost': False\n"
+            "    }}))\n"
+            "    (project / '.nostdb').write_bytes(b'core-created fixture')\n"
+            "    print('{{\"columns\":[],\"rows\":[]}}')\n"
             "elif sys.argv[1:2] == ['sync']:\n"
             "    project = pathlib.Path(sys.argv[sys.argv.index('--project') + 1])\n"
             "    config = json.loads((project / 'nostdb.json').read_text())\n"
@@ -1113,6 +1148,46 @@ class SkillTests(unittest.TestCase):
             cwd=unrelated_cwd,
         )
         self.assertEqual(initialized.returncode, 0, initialized.stderr)
+
+        legacy_native = self.temporary / "nostdb-legacy-native"
+        legacy_native.write_text(
+            "#!{}\nimport json, pathlib, sys\n"
+            "if sys.argv[1:] == ['--version']:\n"
+            "    print('nostdb 0.0.2')\n"
+            "elif sys.argv[1:2] == ['sync']:\n"
+            "    project = pathlib.Path(sys.argv[sys.argv.index('--project') + 1])\n"
+            "    config = json.loads((project / 'nostdb.json').read_text())\n"
+            "    (project / config['root']).write_bytes(b'legacy core fixture')\n"
+            "    print('{{\"columns\":[],\"rows\":[]}}')\n"
+            "else:\n"
+            "    sys.exit(9)\n".format(sys.executable),
+            encoding="utf-8",
+        )
+        legacy_native.chmod(0o755)
+        legacy_project = self.temporary / "standalone-legacy-project"
+        legacy_initialized = invoke(
+            sys.executable,
+            skill_entry,
+            "init",
+            "--src",
+            legacy_project,
+            "--core-provider",
+            "installed",
+            "--core-binary",
+            legacy_native,
+            cwd=unrelated_cwd,
+        )
+        self.assertEqual(
+            legacy_initialized.returncode, 0, legacy_initialized.stderr
+        )
+        self.assertEqual(
+            json.loads((legacy_project / "nostdb.json").read_text())["skills"][
+                "core_provider"
+            ],
+            "installed",
+        )
+        self.assertTrue((legacy_project / ".nostdb").is_file())
+
         native_environment = os.environ.copy()
         native_environment["NOSTDB_BIN"] = str(native)
         for name in SKILLS:

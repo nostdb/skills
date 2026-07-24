@@ -7,7 +7,12 @@ description: Initialize, remove, explain, model, populate, inspect, query, valid
 
 Route an explicit leading action before the general workflow:
 
-- `help`: Run `python3 <skill-root>/scripts/nostdb_skill.py help` and return its stdout. Do not require or inspect a project, resolve the CLI, or modify files.
+- `help`: Respond directly from this file without running Python, inspecting a
+  project, resolving the CLI, or modifying files. State that `nostdb` supports
+  guarded NDB-only initialization, scoped removal, source configuration,
+  Schema/Constraint design, ingestion, querying, diagnostics, and maintenance;
+  direct graph visualization belongs to `nostdb-visualize`. Mention that
+  initialization defaults to Core `0.0.2` with provider `auto`.
 - `init`: Read [safety.md](references/safety.md), [project.md](references/project.md), and [core-providers.md](references/core-providers.md). Require the intended project root, inspect whether it is empty, then initialize the configured `.nostdb` without exposing source:
 
 ```bash
@@ -17,8 +22,12 @@ python3 <skill-root>/scripts/nostdb_skill.py init \
 
 Add `--allow-nonempty` only after confirming an existing nonempty directory is
 the intended project. Preserve the default exact Core version unless the user
-requests a supported migration. The initializer resolves the CLI and creates
-the database. Report the configuration and root `.nostdb`; `.nost` must remain
+requests a supported migration. The wrapper resolves the provider, delegates
+project configuration and database creation to native `nostdb init` when the
+resolved CLI supports it, then records Agent-specific provider metadata. The
+published Core `0.0.2` predates native `init`, so the wrapper uses its guarded
+in-process configuration plus native `sync` compatibility path for that
+provider. Report the configuration and root `.nostdb`; `.nost` must remain
 absent while `nost` is false.
 - `remove`: Read [safety.md](references/safety.md) and [project.md](references/project.md). Require explicit confirmation of the exact project root, inspect its Git changes, and stop any database owner. Run the bundled helper rather than deleting paths ad hoc:
 

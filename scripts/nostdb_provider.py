@@ -43,7 +43,7 @@ class CoreProvider(NamedTuple):
         return self.binary_path
 
 
-def native_candidate(project: Path, explicit: Optional[str]) -> Optional[Path]:
+def native_candidate(explicit: Optional[str]) -> Optional[Path]:
     """Select one native candidate without validating its version."""
 
     selected = explicit or os.environ.get("NOSTDB_BIN")
@@ -184,13 +184,22 @@ def resolve_provider(
             "authorize a reviewed binary with --binary PATH or NOSTDB_BIN=PATH",
             file=sys.stderr,
         )
+    return resolve_requested_provider(expected, policy, explicit)
+
+
+def resolve_requested_provider(
+    expected: str, policy: str, explicit: Optional[str] = None
+) -> CoreProvider:
+    """Resolve a requested provider before a project configuration exists."""
+
+    policy = validate_core_provider(policy)
     if policy == "npx":
         if explicit:
             raise CoreResolutionError(
                 "--binary cannot be combined with skills.core_provider npx"
             )
         return npx_provider(expected)
-    candidate = native_candidate(project, explicit)
+    candidate = native_candidate(explicit)
     if candidate is not None:
         return native_provider(candidate, expected)
     if policy == "auto":

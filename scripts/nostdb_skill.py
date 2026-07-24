@@ -1,69 +1,95 @@
 #!/usr/bin/env python3
-"""Expose deterministic help, initialization, and removal for the nostdb Skill."""
+"""Bridge guarded Skill init/remove actions to the native NostDB CLI."""
 
+import argparse
 import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
+
+from nostdb_config import (
+    CORE_PROVIDERS,
+    ConfigConflictError,
+    ConfigError,
+    atomic_write,
+    config_path,
+    read_text,
+    update_sections,
+    validate_core_provider,
+    validate_core_version,
+)
+from nostdb_project import DEFAULT_CORE_VERSION, initialize as initialize_config, remove
+from nostdb_provider import (
+    CoreProvider,
+    CoreResolutionError,
+    resolve_requested_provider,
+)
+
+LEGACY_NPX_WITHOUT_NATIVE_INIT = frozenset({"0.0.2"})
 
 
-HELP = """NostDB Skill
-
-Usage:
-  nostdb help
-  nostdb init --src PATH [options]
-  nostdb remove --src PATH [--dry-run]
-  nostdb <natural-language task>
-
-Actions:
-  help    Show this action summary without inspecting or changing a project.
-  init    Initialize one guarded NDB-only project and create its database.
-  remove  Delete NostDB configuration, sources, databases, and sidecars below
-          one explicitly selected project root.
-
-Init defaults:
-  --core-version 0.0.2
-  --core-provider auto
-
-Use --allow-nonempty only after confirming the destination is the intended
-existing project. Initialization never replaces nostdb.json or the selected
-`.nostdb`. Removal refuses broad roots, symlink boundaries, and an open database;
-use --dry-run to inspect its complete target list without deleting.
-"""
-
-
-def _run_init(helper: Path, values: List[str]) -> int:
-    completed = subprocess.run(
-        [sys.executable, str(helper), "init"] + values,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if completed.returncode != 0:
-        sys.stdout.write(completed.stdout)
-        sys.stderr.write(completed.stderr)
-        return completed.returncode
+def _cleanup_init(project: Path) -> None:
+    configuration = config_path(project)
+    database = project / ".nostdb"
     try:
-        payload = json.loads(completed.stdout)
-        project = Path(payload["src"])
-        database = project / payload["root"]
-    except (KeyError, TypeError, ValueError) as error:
-        print(
-            "nostdb-skill: invalid project helper response: {}".format(error),
-            file=sys.stderr,
+        configuration.unlink()
+    except FileNotFoundError:
+        pass
+    for suffix in ("", ".lock", "-wal", "-shm", "-journal"):
+        try:
+            Path(str(database) + suffix).unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _run(command: list) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
         )
-        return 3
-    core = Path(__file__).resolve().with_name("nostdb_core.py")
-    core_arguments = [sys.executable, str(core), "run", "--src", str(project)]
-    if "--core-binary" in values:
-        index = values.index("--core-binary")
-        if index + 1 < len(values):
-            core_arguments.extend(["--binary", values[index + 1]])
-    core_arguments.extend(
-        [
-            "--",
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise CoreResolutionError(
+            "cannot execute Core provider {}: {}".format(command[0], error)
+        ) from error
+
+
+def _supports_native_init(provider: CoreProvider) -> bool:
+    if (
+        provider.kind == "npx"
+        and provider.version in LEGACY_NPX_WITHOUT_NATIVE_INIT
+    ):
+        return False
+    return _run(provider.command + ["init", "--help"]).returncode == 0
+
+
+def _initialize_with_native(
+    args: argparse.Namespace, command: list, project: Path
+) -> subprocess.CompletedProcess:
+    invocation = command + [
+        "init",
+        "--project",
+        str(project),
+        "--format",
+        "json",
+    ]
+    if args.allow_nonempty:
+        invocation.append("--allow-nonempty")
+    return _run(invocation)
+
+
+def _initialize_with_legacy_cli(
+    args: argparse.Namespace, command: list, project: Path
+) -> subprocess.CompletedProcess:
+    initialize_config(args)
+    completed = _run(
+        command
+        + [
             "sync",
             "--project",
             str(project),
@@ -71,65 +97,95 @@ def _run_init(helper: Path, values: List[str]) -> int:
             "json",
         ]
     )
-    synchronized = subprocess.run(
-        core_arguments,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    if completed.returncode != 0:
+        _cleanup_init(project)
+    return completed
+
+
+def initialize(args: argparse.Namespace) -> int:
+    project = args.src.expanduser().resolve()
+    version = validate_core_version(args.core_version)
+    policy = validate_core_provider(args.core_provider)
+    provider = resolve_requested_provider(version, policy, args.core_binary)
+    uses_native_init = _supports_native_init(provider)
+    if uses_native_init:
+        completed = _initialize_with_native(args, provider.command, project)
+    else:
+        completed = _initialize_with_legacy_cli(args, provider.command, project)
+    if completed.returncode != 0:
+        sys.stdout.write(completed.stdout)
+        sys.stderr.write(completed.stderr)
+        return completed.returncode
+
+    database = project / ".nostdb"
+    try:
+        if not database.is_file():
+            raise ConfigError("Core did not create {}".format(database))
+        if uses_native_init:
+            skills = {
+                "core_provider": policy,
+                "core_version": version,
+            }
+            if args.core_binary:
+                skills["core_binary"] = args.core_binary
+            original = read_text(project)
+            updated = update_sections(original, {"skills": skills})
+            atomic_write(config_path(project), updated, expected_text=original)
+    except ConfigConflictError:
+        raise
+    except (ConfigError, OSError):
+        _cleanup_init(project)
+        raise
+
+    sys.stderr.write(completed.stderr)
+    print(
+        json.dumps(
+            {
+                "config": str(config_path(project)),
+                "core_version": version,
+                "nost": False,
+                "root": ".nostdb",
+                "src": str(project),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     )
-    if synchronized.returncode != 0 or not database.is_file():
-        try:
-            (project / "nostdb.json").unlink()
-        except FileNotFoundError:
-            pass
-        for suffix in ("", ".lock", "-wal", "-shm", "-journal"):
-            try:
-                Path(str(database) + suffix).unlink()
-            except FileNotFoundError:
-                pass
-        sys.stderr.write(synchronized.stderr)
-        if synchronized.returncode == 0:
-            print(
-                "nostdb-skill: Core did not create {}".format(database),
-                file=sys.stderr,
-            )
-            return 3
-        return synchronized.returncode
-    sys.stderr.write(synchronized.stderr)
-    print(completed.stdout, end="")
     return 0
 
 
-def main(arguments: Optional[List[str]] = None) -> int:
-    """Dispatch one public Skill action without a shell."""
-
-    values = list(sys.argv[1:] if arguments is None else arguments)
-    if not values or values[0] in {"help", "-h", "--help"}:
-        print(HELP, end="")
-        return 0
-    if values[0] in {"init", "remove"}:
-        helper = Path(__file__).resolve().with_name("nostdb_project.py")
-        try:
-            if values[0] == "init":
-                return _run_init(helper, values[1:])
-            completed = subprocess.run(
-                [sys.executable, str(helper), values[0]] + values[1:],
-                check=False,
-            )
-        except OSError as error:
-            print(
-                "nostdb-skill: cannot run project helper: {}".format(error),
-                file=sys.stderr,
-            )
-            return 3
-        return completed.returncode
-    print(
-        "nostdb-skill: unknown action {!r}; use 'help', 'init', 'remove', or "
-        "describe the NostDB task".format(values[0]),
-        file=sys.stderr,
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(description=__doc__)
+    commands = root.add_subparsers(dest="command", required=True)
+    init = commands.add_parser("init", help="initialize through the native CLI")
+    init.add_argument("--src", type=Path, required=True)
+    init.add_argument("--core-version", default=DEFAULT_CORE_VERSION)
+    init.add_argument("--core-provider", choices=CORE_PROVIDERS, default="auto")
+    init.add_argument("--core-binary")
+    init.add_argument("--allow-nonempty", action="store_true")
+    init.set_defaults(handler=initialize)
+    remove_command = commands.add_parser(
+        "remove", help="delete guarded project-local NostDB files"
     )
-    return 2
+    remove_command.add_argument("--src", type=Path, required=True)
+    remove_command.add_argument("--dry-run", action="store_true")
+    remove_command.set_defaults(handler=remove)
+    return root
+
+
+def main(arguments: Optional[list] = None) -> int:
+    """Dispatch one guarded public Skill mutation."""
+
+    try:
+        args = parser().parse_args(arguments)
+        result = args.handler(args)
+        if isinstance(result, dict):
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            return 0
+        return result
+    except (ConfigError, CoreResolutionError, OSError) as error:
+        print("nostdb-skill: {}".format(error), file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":

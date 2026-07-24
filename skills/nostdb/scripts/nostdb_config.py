@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Small dependency-free helpers for the versioned NostDB skill configuration."""
 
+import hashlib
 import json
 import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
@@ -15,6 +16,10 @@ CORE_PROVIDERS = ("auto", "installed", "npx")
 
 class ConfigError(ValueError):
     """A deterministic skill-configuration error."""
+
+
+class ConfigConflictError(ConfigError):
+    """A configuration changed after it was read."""
 
 
 def config_path(project: Path) -> Path:
@@ -124,7 +129,7 @@ def update_values(text: str, updates: dict) -> str:
     return json.dumps(document, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
 
 
-def atomic_write(path: Path, text: str) -> None:
+def atomic_write(path: Path, text: str, expected_text: Optional[str] = None) -> None:
     path = path.resolve()
     if path.name != "nostdb.json":
         raise ConfigError("configuration helper may write only nostdb.json")
@@ -137,6 +142,20 @@ def atomic_write(path: Path, text: str) -> None:
             os.fsync(output.fileno())
         mode = (path.stat().st_mode & 0o777) if path.exists() else 0o644
         os.chmod(str(temporary_path), mode)
+        if expected_text is not None:
+            expected_hash = hashlib.sha256(expected_text.encode("utf-8")).digest()
+            try:
+                current_hash = hashlib.sha256(path.read_bytes()).digest()
+            except OSError as error:
+                raise ConfigError(
+                    "cannot revalidate {} before update: {}".format(path, error)
+                ) from error
+            if current_hash != expected_hash:
+                raise ConfigConflictError(
+                    "configuration changed during update; refusing to replace {}".format(
+                        path
+                    )
+                )
         os.replace(str(temporary_path), str(path))
     except BaseException:
         try:

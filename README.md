@@ -31,11 +31,19 @@ Install only `nostdb` when visualization is not needed, or only `nostdb-visualiz
 The downloaded Skill directory does not require this repository checkout, a sibling `references/` or `scripts/` directory, the other NostDB Skill, a particular agent-specific parent path, or a particular current working directory.
 
 After the agent activates the Skill, `nostdb help` returns the supported action
-summary without requiring a project, `nostdb init` creates `nostdb.json` and
-the root `.nostdb` without materializing `.nost`, and `nostdb remove`
+summary directly from `SKILL.md` without starting Python or requiring a
+project, `nostdb init` delegates guarded project creation to the native CLI and
+creates `nostdb.json` plus the root `.nostdb` without materializing `.nost`, and
+`nostdb remove`
 deletes recognized project-local NostDB files below one explicitly selected
 project root. These are Agent Skill actions, not additional subcommands of the native
-`nostdb` CLI.
+`nostdb` CLI, except that project creation itself is also available as native
+`nostdb init --project PATH`.
+
+The already-published `@nostdb/cli@0.0.2` predates native `init`. For that exact
+provider, the wrapper keeps a compatibility path that creates the guarded
+configuration in-process and calls native `sync`; providers with native `init`
+use it directly. Static help never uses Python.
 
 ## Source-preview quickstart
 
