@@ -177,7 +177,9 @@ def resolve_provider(
     project = project.resolve()
     values = skill_values(project)
     expected = require_core_version(project)
-    policy = validate_core_provider(values.get("core_provider", "installed"))
+    if "core_provider" not in values:
+        raise CoreResolutionError("settings.json is missing skills.core_provider")
+    policy = validate_core_provider(values["core_provider"])
     if values.get("core_binary") and not explicit and not os.environ.get("NOSTDB_BIN"):
         print(
             "nostdb-core: ignoring untrusted skills.core_binary metadata; "
@@ -214,7 +216,7 @@ def resolve_requested_provider(
 
 
 def resolve(project: Path, explicit: Optional[str] = None) -> Path:
-    """Backward-compatible native-only resolver used by existing integrations."""
+    """Resolve a native provider for integrations that require a file path."""
 
     provider = resolve_provider(project, explicit)
     if provider.binary is None:

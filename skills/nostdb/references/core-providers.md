@@ -22,23 +22,23 @@ Native resolution order is an explicit `--binary`, `NOSTDB_BIN`, then `nostdb` o
 The project policy is:
 
 ```json
-{"nostdb":1,"root":".nostdb","nost":false,"skills":{"core_version":"0.0.2","core_provider":"auto"}}
+{"version":1,"database":{"root":"root.nostdb","links":[]},"source":{"version":1,"enabled":false},"skills":{"core_version":"0.0.3","core_provider":"auto"}}
 ```
 
 - `installed`: use native resolution only and never initiate a network fallback.
 - `npx`: invoke the exact official package version recorded by `core_version`.
 - `auto`: prefer a compatible native binary and otherwise use the pinned npx provider.
-- missing: preserve current installed-only behavior for existing projects until explicit configuration or migration.
+- missing: reject incomplete settings; every project must choose a provider.
 
 The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper never uses `latest` or a version range. npx requires the command plus network access or a usable npm cache; failure reports the pinned version and installation alternatives without weakening the version check.
 
-The unsupported `@nostdb/cli@0.0.2` package is published under `latest` and
-`next`. The `auto` and `npx` policies still invoke the exact version recorded in
-`skills.core_version`, never a dist-tag. For a source-built or network-free
-provider, build the sibling CLI repository, select `core_provider =
-"installed"`, and export its reviewed absolute path through `NOSTDB_BIN`. A
-matching `core_binary` value may also be recorded during initialization, but
-remains non-authoritative metadata:
+The breaking `0.0.3` project contract is not published while it is under
+development. The `auto` and `npx` policies still invoke the exact version
+recorded in `skills.core_version`, never a dist-tag; until that package exists,
+use a source-built installed provider. Build the sibling CLI repository,
+select `core_provider = "installed"`, and export its reviewed absolute path
+through `NOSTDB_BIN`. A matching `core_binary` value may also be recorded
+during initialization, but remains non-authoritative metadata:
 
 ```bash
 cargo build --manifest-path ../nostdb-cli/Cargo.toml --locked
@@ -62,4 +62,6 @@ replace the environment authorization.
 - missing npx, offline/cache failure, unsupported platform, and interrupted child behavior;
 - the existing Codex/Claude portable fixture producing identical canonical source hashes, logical generations/counts, warnings, and unresolved rows through both providers.
 
-Use `nostdb_core.py resolve --json` to inspect the selected provider and its exact argument vector. Native default output remains the binary path for compatibility; an npx provider has no persistent binary path.
+Use `nostdb_core.py resolve --json` to inspect the selected provider and its
+exact argument vector. Native default output is the binary path; an npx
+provider has no persistent binary path.

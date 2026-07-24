@@ -1,11 +1,10 @@
 # Deterministic helpers
 
-- `nostdb_project.py`: persist Core/source selection and remove project-local
-  NostDB artifacts; its direct initializer also supports pre-native-init Core
-  providers and fixtures
-- `nostdb_skill.py`: resolve the Agent provider, prefer native `nostdb init`,
-  retain a guarded native-`sync` compatibility path, and expose scoped
-  `remove`; static Skill help requires no script
+- `nostdb_project.py`: persist Core/source selection, discover nested projects,
+  refresh root links, and remove project-local NostDB directories
+- `nostdb_skill.py`: resolve the Agent provider, delegate `init` and `update`
+  to the native CLI, and expose scoped `remove`; static Skill help requires no
+  script
 - `nostdb_core.py`: resolve an exactly pinned native or npx CLI provider and invoke it without a shell
 - `nostdb_provenance.py`: hash one document/code input and emit a portable provenance comment
 - `nostdb_source.py`: hash-guard installation of one complete canonical `.nost` file

@@ -18,7 +18,7 @@ from nostdb_provider import (
 )
 
 
-DEFAULT_CORE_VERSION = "0.0.2"
+DEFAULT_CORE_VERSION = "0.0.3"
 FORMATS = {"table", "json", "jsonl", "csv"}
 INSPECTION_COMMANDS = {"check", "inspect", "schema", "stats", "unresolved"}
 
@@ -111,7 +111,7 @@ def safe_command(arguments: List[str], database: Path) -> List[str]:
 
 def existing_database(path: Path) -> Path:
     absolute = path.absolute()
-    is_database = absolute.name == ".nostdb" or absolute.suffix == ".nostdb"
+    is_database = absolute.suffix == ".nostdb"
     if absolute.is_symlink() or not is_database or not absolute.is_file():
         raise VisualizationError(
             "--database must name one existing non-symlink .nostdb file"
@@ -152,12 +152,12 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     locate = commands.add_parser("resolve", help="print the compatible CLI provider")
-    locate.add_argument("--project", type=Path)
+    locate.add_argument("--src", dest="project", type=Path)
     locate.add_argument("--binary")
     locate.add_argument("--database", type=Path)
     locate.add_argument("--json", action="store_true")
     run = commands.add_parser("run", help="run one allowlisted read-only command")
-    run.add_argument("--project", type=Path)
+    run.add_argument("--src", dest="project", type=Path)
     run.add_argument("--binary")
     run.add_argument("--database", type=Path, required=True)
     run.add_argument("arguments", nargs=argparse.REMAINDER)

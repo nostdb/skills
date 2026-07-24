@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Initialize, configure, or remove a portable NostDB project."""
+"""Configure, discover, or remove a portable NostDB project."""
 
 import argparse
 import json
@@ -14,123 +14,174 @@ from nostdb_config import (
     ConfigError,
     atomic_write,
     config_path,
+    configured_database,
+    project_document,
     read_text,
-    update_sections,
-    update_values,
-    validate_core_version,
     validate_core_provider,
+    validate_core_version,
     validate_root_path,
 )
 
 
-DEFAULT_CORE_VERSION = "0.0.2"
-NDB_SUFFIXES = (
-    ".nostdb",
-    ".nostdb-wal",
-    ".nostdb-shm",
-    ".nostdb-journal",
-    ".nostdb.lock",
-    ".nostdb-lock",
+DEFAULT_CORE_VERSION = "0.0.3"
+PROJECT_DIRECTORY = ".nostdb"
+IGNORED_DISCOVERY_DIRECTORIES = frozenset(
+    {".git", ".hg", ".svn", "node_modules", "target"}
 )
-TEMPORARY_PREFIXES = (".nost-config-", ".nost-source-", ".nost-restore-")
 
 
-def initialize(args: argparse.Namespace) -> dict:
-    project = args.src.resolve()
-    configuration = config_path(project)
-    if configuration.exists():
-        raise ConfigError("refusing to replace existing {}".format(configuration))
-    if project.exists() and any(project.iterdir()) and not args.allow_nonempty:
-        raise ConfigError(
-            "refusing to initialize a nonempty directory without --allow-nonempty: {}".format(
-                project
-            )
+def _settings_text(document: dict) -> str:
+    return (
+        json.dumps(
+            document,
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
         )
-    validate_core_version(args.core_version)
-    validate_core_provider(args.core_provider)
-    database_root = validate_root_path(".nostdb")
-    database = project / database_root
-    if database.exists():
-        raise ConfigError("refusing to adopt existing {}".format(database))
-    project.mkdir(parents=True, exist_ok=True)
-    skills = {
-        "core_version": args.core_version,
-        "core_provider": args.core_provider,
-    }
+        + "\n"
+    )
+
+
+def configure(args: argparse.Namespace) -> dict:
+    project = args.src.expanduser().resolve()
+    original = read_text(project)
+    document = project_document(project)
+    updated = {}
+    skills = document.setdefault("skills", {})
+    if not isinstance(skills, dict):
+        raise ConfigError("settings.json skills must be an object")
+    if args.core_version:
+        skills["core_version"] = validate_core_version(args.core_version)
+        updated["core_version"] = args.core_version
     if args.core_binary:
         skills["core_binary"] = args.core_binary
-    text = json.dumps(
-        {
-            "nostdb": 1,
-            "root": database_root,
-            "nost": False,
-            "skills": skills,
-        },
-        indent=2,
-        ensure_ascii=False,
-        sort_keys=True,
-    ) + "\n"
-    atomic_write(configuration, text)
+        updated["core_binary"] = args.core_binary
+    if args.core_provider:
+        skills["core_provider"] = validate_core_provider(args.core_provider)
+        updated["core_provider"] = args.core_provider
+    source = document.get("source")
+    if not isinstance(source, dict):
+        raise ConfigError("settings.json source must be an object")
+    if args.source_enabled is not None:
+        source["enabled"] = args.source_enabled == "true"
+        updated["source_enabled"] = source["enabled"]
+    database = document.get("database")
+    if not isinstance(database, dict):
+        raise ConfigError("settings.json database must be an object")
+    if args.root:
+        root = validate_root_path(args.root)
+        current = configured_database(project)
+        if root != current and (project / PROJECT_DIRECTORY / current).exists():
+            raise ConfigError(
+                "cannot rename an existing database through settings; use the native CLI"
+            )
+        database["root"] = root
+        updated["root"] = root
+    if not updated:
+        raise ConfigError("configure requires at least one value")
+    atomic_write(config_path(project), _settings_text(document), expected_text=original)
+    return {"settings": str(config_path(project)), "updated": updated}
+
+
+def _direct_child_projects(project: Path) -> List[Path]:
+    children = []
+    for directory, names, _files in os.walk(
+        str(project), topdown=True, followlinks=False
+    ):
+        current = Path(directory)
+        retained = []
+        for name in sorted(names):
+            candidate = current / name
+            if candidate.is_symlink() or name in IGNORED_DISCOVERY_DIRECTORIES:
+                continue
+            if name == PROJECT_DIRECTORY:
+                continue
+            retained.append(name)
+        names[:] = retained
+        if current == project:
+            continue
+        storage = current / PROJECT_DIRECTORY
+        settings = storage / "settings.json"
+        if storage.is_symlink() or settings.is_symlink():
+            continue
+        if storage.is_dir() and settings.is_file():
+            children.append(current)
+            names[:] = []
+    return sorted(children, key=lambda path: path.relative_to(project).as_posix())
+
+
+def refresh_links(project: Path) -> List[dict]:
+    requested = project.expanduser().absolute()
+    if requested.is_symlink():
+        raise ConfigError("project root must not be a symlink: {}".format(requested))
+    project = requested.resolve()
+    storage = project / PROJECT_DIRECTORY
+    settings = storage / "settings.json"
+    if storage.is_symlink() or settings.is_symlink():
+        raise ConfigError("project settings must not cross a symlink: {}".format(settings))
+    original = read_text(project)
+    document = project_document(project)
+    database = document.get("database")
+    if not isinstance(database, dict):
+        raise ConfigError("settings.json database must be an object")
+    own_root = configured_database(project)
+    own_database = project / PROJECT_DIRECTORY / own_root
+    if not own_database.is_file():
+        raise ConfigError("configured database does not exist: {}".format(own_database))
+
+    links = []
+    for child in _direct_child_projects(project):
+        refresh_links(child)
+        root = configured_database(child)
+        child_database = child / PROJECT_DIRECTORY / root
+        if not child_database.is_file():
+            raise ConfigError(
+                "linked project database does not exist: {}".format(child_database)
+            )
+        links.append(
+            {
+                "project": child.relative_to(project).as_posix(),
+                "root": root,
+            }
+        )
+    links.sort(key=lambda link: link["project"])
+    if database.get("links") != links:
+        database["links"] = links
+        atomic_write(
+            config_path(project),
+            _settings_text(document),
+            expected_text=original,
+        )
+    return links
+
+
+def refresh(args: argparse.Namespace) -> dict:
+    project = args.src.expanduser().resolve()
+    links = refresh_links(project)
     return {
-        "config": str(configuration),
-        "core_version": args.core_version,
-        "root": database_root,
-        "nost": False,
+        "links": links,
+        "root": configured_database(project),
+        "settings": str(config_path(project)),
         "src": str(project),
     }
 
 
-def configure(args: argparse.Namespace) -> dict:
-    project = args.src.resolve()
-    updates = {}
-    skills = {}
-    if args.core_version:
-        skills["core_version"] = validate_core_version(args.core_version)
-    if args.core_binary:
-        skills["core_binary"] = args.core_binary
-    if args.core_provider:
-        skills["core_provider"] = validate_core_provider(args.core_provider)
-    if args.nost is not None:
-        updates["nost"] = args.nost == "true"
-    if skills:
-        updates["skills"] = skills
-    if not updates:
-        raise ConfigError("configure requires at least one value")
-    text = read_text(project)
-    skill_updates = updates.pop("skills", None)
-    if skill_updates:
-        text = update_sections(text, {"skills": skill_updates})
-    updated_values = dict(updates)
-    updated = update_values(text, updated_values) if updated_values else text
-    atomic_write(config_path(project), updated)
-    if skill_updates:
-        updated_values["skills"] = skill_updates
-    return {"config": str(config_path(project)), "updated": updated_values}
-
-
-def _is_nostdb_artifact(name: str) -> bool:
-    return (
-        name == "nostdb.json"
-        or name.endswith(".nost-lock")
-        or name.endswith(NDB_SUFFIXES)
-        or name.startswith(TEMPORARY_PREFIXES)
-    )
-
-
 def _removal_targets(src: Path) -> List[Path]:
-    targets = set()
-    for directory, names, files in os.walk(str(src), topdown=True, followlinks=False):
-        parent = Path(directory)
-        for name in list(names):
-            candidate = parent / name
-            if name == ".nost":
-                targets.add(candidate)
-                names.remove(name)
-            elif candidate.is_symlink():
-                names.remove(name)
-        for name in files:
-            if _is_nostdb_artifact(name):
-                targets.add(parent / name)
+    targets = []
+    for directory, names, _files in os.walk(
+        str(src), topdown=True, followlinks=False
+    ):
+        current = Path(directory)
+        retained = []
+        for name in names:
+            candidate = current / name
+            if candidate.is_symlink():
+                continue
+            if name == PROJECT_DIRECTORY:
+                targets.append(candidate)
+                continue
+            retained.append(name)
+        names[:] = retained
     return sorted(targets, key=lambda path: path.relative_to(src).as_posix())
 
 
@@ -138,12 +189,11 @@ def _assert_no_symlink_boundary(targets: List[Path]) -> None:
     for target in targets:
         if target.is_symlink():
             raise ConfigError("refusing to remove symlinked NostDB path: {}".format(target))
-        if target.is_dir():
-            for nested in target.rglob("*"):
-                if nested.is_symlink():
-                    raise ConfigError(
-                        "refusing to remove through symlink boundary: {}".format(nested)
-                    )
+        for nested in target.rglob("*"):
+            if nested.is_symlink():
+                raise ConfigError(
+                    "refusing to remove through symlink boundary: {}".format(nested)
+                )
 
 
 def _assert_database_lock_available(path: Path) -> None:
@@ -189,48 +239,35 @@ def remove(args: argparse.Namespace) -> dict:
     targets = _removal_targets(src)
     _assert_no_symlink_boundary(targets)
     for target in targets:
-        if not target.is_file() and not target.is_dir():
-            raise ConfigError("refusing non-regular NostDB path: {}".format(target))
-        if target.name.endswith(".nostdb.lock") and target.is_file():
-            _assert_database_lock_available(target)
+        for lock in target.rglob("*.nostdb.lock"):
+            if lock.is_file():
+                _assert_database_lock_available(lock)
     relative = [target.relative_to(src).as_posix() for target in targets]
     if args.dry_run:
         return {"dry_run": True, "removed": [], "src": str(src), "targets": relative}
-    for target in sorted(
-        (path for path in targets if path.is_file() and path != configuration),
-        key=lambda path: len(path.parts),
-        reverse=True,
-    ):
-        target.unlink()
-    for target in sorted(
-        (path for path in targets if path.is_dir()),
-        key=lambda path: len(path.parts),
-        reverse=True,
-    ):
+    for target in sorted(targets, key=lambda path: len(path.parts), reverse=True):
         shutil.rmtree(str(target))
-    configuration.unlink()
     return {"dry_run": False, "removed": relative, "src": str(src)}
 
 
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
-    init = commands.add_parser("init", help="create a new NDB-only project configuration")
-    init.add_argument("--src", type=Path, required=True)
-    init.add_argument("--core-version", default=DEFAULT_CORE_VERSION)
-    init.add_argument("--core-provider", choices=CORE_PROVIDERS, default="auto")
-    init.add_argument("--core-binary")
-    init.add_argument("--allow-nonempty", action="store_true")
-    init.set_defaults(handler=initialize)
-    change = commands.add_parser("configure", help="persist Core selection")
+    change = commands.add_parser("configure", help="persist project settings")
     change.add_argument("--src", type=Path, required=True)
     change.add_argument("--core-version")
     change.add_argument("--core-provider", choices=CORE_PROVIDERS)
     change.add_argument("--core-binary")
-    change.add_argument("--nost", choices=("true", "false"))
+    change.add_argument("--source-enabled", choices=("true", "false"))
+    change.add_argument("--root")
     change.set_defaults(handler=configure)
+    discover = commands.add_parser(
+        "refresh", help="discover and record nested project links"
+    )
+    discover.add_argument("--src", type=Path, required=True)
+    discover.set_defaults(handler=refresh)
     remove_command = commands.add_parser(
-        "remove", help="delete project-local NostDB files below one project root"
+        "remove", help="delete project-local NostDB directories below one root"
     )
     remove_command.add_argument("--src", type=Path, required=True)
     remove_command.add_argument("--dry-run", action="store_true")
@@ -240,8 +277,14 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     try:
-        result = parser().parse_args()
-        print(json.dumps(result.handler(result), sort_keys=True, separators=(",", ":")))
+        args = parser().parse_args()
+        print(
+            json.dumps(
+                args.handler(args),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         return 0
     except (ConfigError, OSError) as error:
         print("nostdb-project: {}".format(error), file=sys.stderr)

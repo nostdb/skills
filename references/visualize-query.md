@@ -1,22 +1,26 @@
 # Read-only visualization query boundary
 
-The visualization wrapper exposes only query, inspect, stats, schema, unresolved, and check against one existing .nostdb. It rejects synchronization, source commands, remote or database administration, interactive input, query files, and arbitrary CLI passthrough.
+The visualization wrapper exposes only query, inspect, stats, schema,
+unresolved, and check against one existing `*.nostdb`. It rejects
+synchronization, source commands, remote or database administration,
+interactive input, query files, and arbitrary CLI passthrough.
 
-For a standalone NDB-only database, no nostdb.json is needed. Explicitly authorize the reviewed binary and database:
+For a standalone NDB-only database, project settings are not needed. Explicitly
+authorize the reviewed binary and named database:
 
     python3 <skill-root>/scripts/nostdb_core.py resolve \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/.nostdb --json
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/root.nostdb --json
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/.nostdb -- \
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/root.nostdb -- \
       query --read-only \
       'MATCH (n) RETURN id(n) AS internal_id, n ORDER BY internal_id LIMIT 101' \
       --format json
 
-For a configured project, `--project` selects the pinned provider and the
-top-level configured `root`:
+For a configured project, `--src` selects the pinned provider and
+`database.root` in `.nostdb/settings.json`:
 
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --project <project> --database <project>/.nostdb -- \
+      --src <project> --database <project>/.nostdb/root.nostdb -- \
       query --read-only \
       'MATCH (n) RETURN id(n) AS internal_id, n ORDER BY internal_id LIMIT 101' \
       --format json
@@ -32,15 +36,15 @@ Start with a declared display bound such as 100, query in deterministic order, a
 Inspection uses the same explicit database boundary:
 
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/.nostdb -- \
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/root.nostdb -- \
       inspect --format json
     python3 <skill-root>/scripts/nostdb_core.py run \
-      --binary /absolute/path/to/nostdb --database /absolute/path/to/.nostdb -- \
+      --binary /absolute/path/to/nostdb --database /absolute/path/to/root.nostdb -- \
       unresolved --format json
 
-`nost: true` means the database has a human-readable-source synchronization
+`source_enabled: true` means the database has a human-readable-source synchronization
 baseline; it does not make `.nost` independently
-authoritative. Visualization still reads the existing `.nostdb` without
+authoritative. Visualization still reads the existing `*.nostdb` without
 synchronizing it. Use `RETURN DISTINCT id(n) AS internal_id, ... ORDER BY ...,
 internal_id` when a database-local tie-breaker is required. Internal IDs are
 query-visible correlation keys, not permanent external identity.

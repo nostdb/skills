@@ -109,7 +109,7 @@ def execute_created(
     scripts = output / adapter_directory / "skills" / "nostdb" / "scripts"
     initialize = [
         sys.executable,
-        scripts / "nostdb_project.py",
+        scripts / "nostdb_skill.py",
         "init",
         "--src",
         output,
@@ -124,10 +124,11 @@ def execute_created(
     run(initialize)
     source = output / manifest["source_path"]
     source.parent.mkdir(parents=True, exist_ok=True)
-    config_path = output / "nostdb.json"
+    config_path = output / ".nostdb" / "settings.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["nost"] = True
-    config["modules"] = {manifest["source_path"]: manifest["module_id"]}
+    config["source"]["enabled"] = True
+    source_relative = source.relative_to(output / ".nostdb").as_posix()
+    config["source"]["modules"] = {source_relative: manifest["module_id"]}
     config_path.write_text(
         json.dumps(config, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -148,7 +149,7 @@ def execute_created(
         )
     )
     source.write_bytes(formatted)
-    database = output / ".nostdb"
+    database = output / ".nostdb" / config["database"]["root"]
     run(
         core_command(
             scripts,
@@ -262,7 +263,7 @@ def execute_created(
     if args.binary:
         visualize.extend(["--binary", args.binary.resolve()])
     else:
-        visualize.extend(["--project", output])
+        visualize.extend(["--src", output])
     visualize.extend(["--database", database, "--"])
     run(
         visualize

@@ -1,7 +1,9 @@
 # Read-only visualization safety
 
 - Treat the configured NostDB project and database as existing authority. Do not initialize, configure, format, synchronize, or mutate them from this Skill.
-- Never open, create, patch, copy as a mutation, or decode `.nostdb`. Invoke only the pinned public `nostdb` CLI through `<skill-root>/scripts/nostdb_core.py`.
+- Never open, create, patch, copy as a mutation, or decode `*.nostdb`. Invoke
+  only the pinned public `nostdb` CLI through
+  `<skill-root>/scripts/nostdb_core.py`.
 - Use the wrapper's bounded `query --read-only` path or its allowlisted inspection commands only. The wrapper rejects query writes, source edits, synchronization, migrations, remote access, and administrative mutation procedures before starting the CLI.
 - Preserve query-visible internal IDs separately from display labels. Never infer identity from a file path or label text.
 - Treat Placeholder, STALE, unresolved Schema, parser, integrity, Constraint, and unsupported-query diagnostics as authoritative.
@@ -11,12 +13,15 @@ For a configured project, resolve the provider before querying:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_core.py resolve \
-  --project <project> --json
+  --src <project> --json
 ```
 
-For standalone NDB-only use, provide both `--binary /reviewed/nostdb` and `--database /existing/.nostdb`; no `nostdb.json` is required. Every run requires an explicit existing database. The wrapper never forwards a project path to the CLI, so it cannot trigger implicit synchronization.
+For standalone NDB-only use, provide both `--binary /reviewed/nostdb` and
+`--database /existing/graph.nostdb`; project settings are not required. Every
+run requires an explicit existing database. The wrapper never forwards a
+project path to the CLI, so it cannot trigger implicit synchronization.
 
-If inspection reports `nost: true`, a human-readable-source synchronization
+If inspection reports `source_enabled: true`, a human-readable-source synchronization
 baseline exists. Neither representation is chosen without the
 project reconciliation rules. The visualization workflow still reads only the
-existing `.nostdb` and remains read-only.
+existing `*.nostdb` and remains read-only.

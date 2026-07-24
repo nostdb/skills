@@ -14,4 +14,5 @@ Read [safety.md](references/safety.md), [query.md](references/query.md), and [co
 5. Include the query, limits, omissions, and unresolved-state legend with the visualization.
 6. If the result exceeds the declared bound, narrow the query; do not silently drop arbitrary rows.
 
-Visualization is read-only. Never derive or modify `.nostdb` bytes and never treat a diagram as graph authority.
+Visualization is read-only. Never derive or modify `*.nostdb` bytes and never
+treat a diagram as graph authority.

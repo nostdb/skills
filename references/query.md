@@ -16,9 +16,9 @@ Inspect the exact administration surfaces without entering the REPL:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  schema --database <src>/.nostdb --format json
+  schema --project <src> --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  unresolved --database <src>/.nostdb --format json
+  unresolved --project <src> --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   imports --project <src> --format json
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
@@ -26,18 +26,20 @@ python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
 ```
 
 Start with `LIMIT 100` or lower. Narrow topology traversals before raising it.
-Project query writes commit to the root `.nostdb`; when `nost` is enabled, the
-CLI synchronizes canonical human-readable source after the commit.
+Project query writes commit to the configured `.nostdb/*.nostdb`; when
+`source.enabled` is true, the CLI synchronizes canonical human-readable source
+after the commit.
 
 Detect authority mode exactly:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
-  inspect --database <src>/.nostdb --format json
+  inspect --project <src> --format json
 ```
 
-`nost: true` means a human-readable-source synchronization baseline exists; it
-does not make `.nostdb` read-only. `false` is the default NDB-only project.
+`source.enabled: true` means a human-readable-source synchronization baseline
+exists; it does not make the configured `*.nostdb` read-only. `false` is the
+default NDB-only project.
 Use `RETURN DISTINCT id(n) AS internal_id, ... ORDER BY ..., internal_id` when a
 stable database-local tie-breaker is required.
 

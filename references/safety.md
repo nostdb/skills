@@ -1,12 +1,15 @@
 # Safety and authority
 
-- Every configured project has an authoritative root `.nostdb`; source is hidden by
-  default.
-- With `nost: true`, Core materializes canonical human-readable `.nost`, tracks database
+- Every configured project has an authoritative `.nostdb/<name>.nostdb`;
+  `.nostdb/root.nostdb` is the default and source is hidden by default.
+- With `source.enabled: true`, Core materializes canonical human-readable `.nost`, tracks database
   generation/time and source hashes/file times, and synchronizes the changed or
   newer representation. Stop on equal-time divergence.
-- Never open, create, patch, copy as a mutation, or decode `.nostdb` in a Skill or helper. Invoke the pinned public `nostdb` CLI and let Core own all storage behavior.
-- Never store a file path as permanent entity or Schema identity. Preserve Stable Module IDs from `nostdb.json`.
+- Never open, create, patch, copy as a mutation, or decode `*.nostdb` in a
+  Skill or helper. Invoke the pinned public `nostdb` CLI and let Core own all
+  storage behavior.
+- Never store a file path as permanent entity or Schema identity. Preserve
+  Stable Module IDs from `.nostdb/settings.json`.
 - Never create an Edge with a missing endpoint. Let Core create or resolve Placeholder Nodes for missing imports.
 - Do not edit imported read-only modules automatically.
 - Before editing a `.nost` file, read the whole file and preserve its comments. Hash the owner with `nostdb_source.py hash --file <owner.nost>`. Rewrite the complete file as a separate candidate, format that candidate through the pinned wrapper, capture its stdout as `<canonical-candidate>`, and install it with `nostdb_source.py install --file <owner.nost> --from <canonical-candidate> --expected-sha256 <original-hash>`. Run the exact owner-file format check below after installation.

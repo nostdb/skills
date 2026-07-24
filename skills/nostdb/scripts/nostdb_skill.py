@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Bridge guarded Skill init/remove actions to the native NostDB CLI."""
+"""Bridge guarded Skill init, update, and remove actions to NostDB Core."""
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,24 +13,29 @@ from nostdb_config import (
     ConfigError,
     atomic_write,
     config_path,
+    configured_database,
     read_text,
     update_sections,
     validate_core_provider,
     validate_core_version,
+    validate_root_path,
 )
-from nostdb_project import DEFAULT_CORE_VERSION, initialize as initialize_config, remove
+from nostdb_project import (
+    DEFAULT_CORE_VERSION,
+    refresh_links,
+    remove,
+)
 from nostdb_provider import (
-    CoreProvider,
     CoreResolutionError,
+    resolve_provider,
     resolve_requested_provider,
 )
 
-LEGACY_NPX_WITHOUT_NATIVE_INIT = frozenset({"0.0.2"})
 
-
-def _cleanup_init(project: Path) -> None:
+def _cleanup_init(project: Path, root: str) -> None:
+    storage = project / ".nostdb"
     configuration = config_path(project)
-    database = project / ".nostdb"
+    database = storage / root
     try:
         configuration.unlink()
     except FileNotFoundError:
@@ -41,9 +45,15 @@ def _cleanup_init(project: Path) -> None:
             Path(str(database) + suffix).unlink()
         except FileNotFoundError:
             pass
+    try:
+        storage.rmdir()
+    except OSError:
+        pass
 
 
-def _run(command: list) -> subprocess.CompletedProcess:
+def _run(command: list) -> object:
+    import subprocess
+
     try:
         return subprocess.run(
             command,
@@ -59,38 +69,74 @@ def _run(command: list) -> subprocess.CompletedProcess:
         ) from error
 
 
-def _supports_native_init(provider: CoreProvider) -> bool:
-    if (
-        provider.kind == "npx"
-        and provider.version in LEGACY_NPX_WITHOUT_NATIVE_INIT
-    ):
-        return False
-    return _run(provider.command + ["init", "--help"]).returncode == 0
-
-
-def _initialize_with_native(
-    args: argparse.Namespace, command: list, project: Path
-) -> subprocess.CompletedProcess:
-    invocation = command + [
+def initialize(args: argparse.Namespace) -> int:
+    project = args.src.expanduser().resolve()
+    version = validate_core_version(args.core_version)
+    policy = validate_core_provider(args.core_provider)
+    root = validate_root_path(args.root)
+    provider = resolve_requested_provider(version, policy, args.core_binary)
+    invocation = provider.command + [
         "init",
         "--project",
         str(project),
+        "--database",
+        root,
         "--format",
         "json",
     ]
     if args.allow_nonempty:
         invocation.append("--allow-nonempty")
-    return _run(invocation)
+    completed = _run(invocation)
+    if completed.returncode != 0:
+        sys.stdout.write(completed.stdout)
+        sys.stderr.write(completed.stderr)
+        return completed.returncode
+
+    try:
+        configured = configured_database(project)
+        database = project / ".nostdb" / configured
+        if configured != root or not database.is_file():
+            raise ConfigError("Core did not create {}".format(database))
+        skills = {
+            "core_provider": policy,
+            "core_version": version,
+        }
+        if args.core_binary:
+            skills["core_binary"] = args.core_binary
+        original = read_text(project)
+        updated = update_sections(original, {"skills": skills})
+        atomic_write(config_path(project), updated, expected_text=original)
+    except ConfigConflictError:
+        raise
+    except (ConfigError, OSError):
+        _cleanup_init(project, root)
+        raise
+
+    sys.stderr.write(completed.stderr)
+    print(
+        json.dumps(
+            {
+                "core_version": version,
+                "root": root,
+                "settings": str(config_path(project)),
+                "source_enabled": False,
+                "src": str(project),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
 
 
-def _initialize_with_legacy_cli(
-    args: argparse.Namespace, command: list, project: Path
-) -> subprocess.CompletedProcess:
-    initialize_config(args)
+def update(args: argparse.Namespace) -> int:
+    project = args.src.expanduser().resolve()
+    provider = resolve_provider(project, args.core_binary)
+    links = refresh_links(project)
     completed = _run(
-        command
+        provider.command
         + [
-            "sync",
+            "update",
             "--project",
             str(project),
             "--format",
@@ -98,54 +144,24 @@ def _initialize_with_legacy_cli(
         ]
     )
     if completed.returncode != 0:
-        _cleanup_init(project)
-    return completed
-
-
-def initialize(args: argparse.Namespace) -> int:
-    project = args.src.expanduser().resolve()
-    version = validate_core_version(args.core_version)
-    policy = validate_core_provider(args.core_provider)
-    provider = resolve_requested_provider(version, policy, args.core_binary)
-    uses_native_init = _supports_native_init(provider)
-    if uses_native_init:
-        completed = _initialize_with_native(args, provider.command, project)
-    else:
-        completed = _initialize_with_legacy_cli(args, provider.command, project)
-    if completed.returncode != 0:
         sys.stdout.write(completed.stdout)
         sys.stderr.write(completed.stderr)
         return completed.returncode
-
-    database = project / ".nostdb"
     try:
-        if not database.is_file():
-            raise ConfigError("Core did not create {}".format(database))
-        if uses_native_init:
-            skills = {
-                "core_provider": policy,
-                "core_version": version,
-            }
-            if args.core_binary:
-                skills["core_binary"] = args.core_binary
-            original = read_text(project)
-            updated = update_sections(original, {"skills": skills})
-            atomic_write(config_path(project), updated, expected_text=original)
-    except ConfigConflictError:
-        raise
-    except (ConfigError, OSError):
-        _cleanup_init(project)
-        raise
-
+        native = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise CoreResolutionError(
+            "native update returned invalid JSON: {}".format(error)
+        ) from error
     sys.stderr.write(completed.stderr)
     print(
         json.dumps(
             {
-                "config": str(config_path(project)),
-                "core_version": version,
-                "nost": False,
-                "root": ".nostdb",
+                "core_version": provider.version,
+                "links": links,
+                "root": configured_database(project),
                 "src": str(project),
+                "updated": native,
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -162,10 +178,17 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("--core-version", default=DEFAULT_CORE_VERSION)
     init.add_argument("--core-provider", choices=CORE_PROVIDERS, default="auto")
     init.add_argument("--core-binary")
+    init.add_argument("--root", default="root.nostdb")
     init.add_argument("--allow-nonempty", action="store_true")
     init.set_defaults(handler=initialize)
+    update_command = commands.add_parser(
+        "update", help="refresh nested project links and synchronize all roots"
+    )
+    update_command.add_argument("--src", type=Path, required=True)
+    update_command.add_argument("--core-binary")
+    update_command.set_defaults(handler=update)
     remove_command = commands.add_parser(
-        "remove", help="delete guarded project-local NostDB files"
+        "remove", help="delete guarded project-local NostDB directories"
     )
     remove_command.add_argument("--src", type=Path, required=True)
     remove_command.add_argument("--dry-run", action="store_true")

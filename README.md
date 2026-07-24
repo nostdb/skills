@@ -9,8 +9,8 @@ Start with the Root [user guide](https://github.com/nostdb/nostdb/blob/main/docs
 Two canonical Agent Skills provide the public surface:
 
 - `nostdb` is the default entry point for `help`, guarded NDB-only `init`,
-  project-local `remove`, deterministic Core commands, Schema evolution,
-  ingestion, and exploration.
+  project-aware `update`, nested root linking, project-local `remove`,
+  deterministic Core commands, Schema evolution, ingestion, and exploration.
 - `nostdb-visualize` is the separate graph-representation workflow for reviewable diagrams and visualization datasets.
 
 Users do not choose separate Core, Schema, ingestion, exploration, or orchestration Skills. The accepted Stage 13 contract requires each Skill to contain its own references and deterministic helpers so either one can be installed and operated independently.
@@ -33,17 +33,13 @@ The downloaded Skill directory does not require this repository checkout, a sibl
 After the agent activates the Skill, `nostdb help` returns the supported action
 summary directly from `SKILL.md` without starting Python or requiring a
 project, `nostdb init` delegates guarded project creation to the native CLI and
-creates `nostdb.json` plus the root `.nostdb` without materializing `.nost`, and
-`nostdb remove`
-deletes recognized project-local NostDB files below one explicitly selected
-project root. These are Agent Skill actions, not additional subcommands of the native
-`nostdb` CLI, except that project creation itself is also available as native
-`nostdb init --project PATH`.
-
-The already-published `@nostdb/cli@0.0.2` predates native `init`. For that exact
-provider, the wrapper keeps a compatibility path that creates the guarded
-configuration in-process and calls native `sync`; providers with native `init`
-use it directly. Static help never uses Python.
+creates `.nostdb/settings.json` plus `.nostdb/root.nostdb` without
+materializing `.nost`, `nostdb update` discovers nested projects and
+synchronizes their configured databases before the parent, and `nostdb remove`
+deletes recognized `.nostdb/` directories below one explicitly selected
+project root. Native project creation and dependency-ordered synchronization
+are also available as `nostdb init` and `nostdb update`. Static help never uses
+Python.
 
 ## Source-preview quickstart
 
@@ -61,7 +57,11 @@ python3 skills/nostdb/scripts/nostdb_core.py resolve \
   --src "$NOSTDB_SRC" --json
 ```
 
-`--core-binary` records the reviewed path as project metadata. Because `nostdb.json` is project-controlled input, that value is never executed automatically; keep `NOSTDB_BIN` set for the agent session or pass `--binary PATH` to each wrapper invocation. Otherwise resolution uses `nostdb` from the user's `PATH`.
+`--core-binary` records the reviewed path as project metadata. Because
+`.nostdb/settings.json` is project-controlled input, that value is never
+executed automatically; keep `NOSTDB_BIN` set for the agent session or pass
+`--binary PATH` to each wrapper invocation. Otherwise resolution uses
+`nostdb` from the user's `PATH`.
 
 ## CLI provider
 
@@ -72,15 +72,13 @@ Skill installation and CLI execution are separate uses of `npx`:
 - `npx skills add ...` downloads an Agent Skill from this GitHub repository.
 - `npx --package=@nostdb/cli@VERSION nostdb ...` runs the Core-containing CLI selected by the Skill.
 
-The unsupported `@nostdb/cli@0.0.2` package is published under `latest` and
-`next`, so `auto` can use its exact-version npx fallback. Use `installed` with
-an exactly matching source-built or global `nostdb` binary when execution must
-remain network-free. The wrapper never falls back to a dist-tag or version
-range.
+The breaking `0.0.3` project contract is not yet published. Use `installed`
+with the matching source-built CLI during development. The wrapper never falls
+back to a dist-tag or version range.
 
-Skills may enable `nost`, write complete canonical `.nost` files, and invoke
-supported CLI commands. They never parse, generate, patch, or decode `.nostdb`
-directly.
+Skills may enable `source.enabled`, write complete canonical `.nost` files
+below `.nostdb/`, and invoke supported CLI commands. They never parse,
+generate, patch, or decode a `*.nostdb` database directly.
 
 Remove a Skill-managed NostDB project after reviewing the exact root and
 stopping any database owner:

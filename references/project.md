@@ -1,83 +1,98 @@
 # Project and Core configuration
 
-## Default NDB-only project
+## Managed project layout
 
-The Skill always creates the root `.nostdb`; source is hidden by default. Do
-not create `.nost` until top-level `nost` is enabled.
+Treat `.nostdb/` as the only managed project directory. `.nostdb` is also the
+database filename suffix; it is never a complete database filename.
+
+```text
+<project>/
+└── .nostdb/
+    ├── settings.json
+    ├── root.nostdb
+    ├── graph.nost
+    └── modules/
+        └── *.nost
+```
+
+`root.nostdb` is the default. `database.root` may select another filename
+ending in `.nostdb`; it may not contain a directory component. Source paths in
+settings are relative to `.nostdb/`.
 
 Initialize once:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_skill.py init \
-  --src <src> --core-version 0.0.2 \
-  --core-provider auto
+  --src <src> --core-version 0.0.3 \
+  --core-provider installed
 ```
 
 Initialization refuses a nonempty directory. After inspecting an existing
-code/document project and confirming it is the intended destination, add
-`--allow-nonempty`; existing `nostdb.json` and the root `.nostdb` are never
-replaced.
+project and confirming it is the intended destination, add
+`--allow-nonempty`. An existing `.nostdb/` is never adopted or replaced.
 
-The wrapper resolves the pinned provider and invokes native
-`nostdb init --project <src>` when that CLI supports it. The CLI creates the
-base configuration and database; the wrapper then adds Agent-specific provider
-metadata. The published Core `0.0.2` predates native `init`, so the wrapper
-retains a compatibility path that creates the same guarded configuration
-in-process and invokes native `sync`:
+The wrapper invokes native `nostdb init`, then adds Agent provider metadata:
 
 ```json
 {
-  "nostdb": 1,
-  "root": ".nostdb",
-  "nost": false,
+  "version": 1,
+  "database": {
+    "root": "root.nostdb",
+    "links": []
+  },
+  "source": {
+    "version": 1,
+    "enabled": false
+  },
   "skills": {
-    "core_provider": "auto",
-    "core_version": "0.0.2"
+    "core_provider": "installed",
+    "core_version": "0.0.3"
   }
 }
 ```
 
-`skills.core_binary` may contain an absolute path or a project-relative path,
-but it is project-owned metadata and is never automatic execution authority.
-An explicit wrapper `--binary`, `NOSTDB_BIN`, then the user's `PATH` are checked
-in that order. The top-level `root` is always the project-local `.nostdb`. The
-wrapper requires exact `nostdb --version` equality.
-`installed` forbids npx fallback, `npx` always uses the exact official package
-version, and `auto` falls back only when no native candidate exists.
+`skills.core_binary` is project-owned metadata and never automatic execution
+authority. An explicit wrapper `--binary`, `NOSTDB_BIN`, then the user's
+`PATH` are checked in that order. The wrapper requires exact
+`nostdb --version` equality.
 
-To expose canonical source for direct editing:
+To expose canonical source:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_project.py configure \
-  --src <src> --nost true
+  --src <src> --source-enabled true
 python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   sync --project <src> --format json
 ```
 
-The sync creates `.nost/graph.nost` for one module or `.nost/modules/*.nost`
-for multiple Stable Module IDs. Setting `nost` back to `false` and syncing
-removes only those configured generated sources.
+Sync creates `.nostdb/graph.nost` for one module or
+`.nostdb/modules/*.nost` for multiple Stable Module IDs. Disabling
+`source.enabled` and syncing removes only configured generated sources.
 
-Persist a user-approved selection without moving files:
+## Nested project links
+
+Run project discovery after adding, removing, or moving nested projects:
 
 ```bash
-python3 <skill-root>/scripts/nostdb_project.py configure \
-  --src <src> --core-version 0.0.2 \
-  --core-provider auto
+python3 <skill-root>/scripts/nostdb_skill.py update --src <src>
 ```
 
-The configure helper can update provider metadata or top-level `nost`. The
-fixed `root` and source paths/Stable Module mappings remain Core-managed.
+Discovery records each nearest nested project as a deterministic
+`database.links` entry containing its parent-relative project path and
+configured database filename. It refreshes nested settings first, then native
+`nostdb update` synchronizes child databases before the parent. Discovery does
+not cross symlinks, VCS metadata, dependency caches, or build outputs.
 
-Remove every project-local NostDB artifact in one operation:
+## Removal
+
+Remove all nested project-local NostDB artifacts in one operation:
 
 ```bash
 python3 <skill-root>/scripts/nostdb_skill.py remove --src <src>
 ```
 
-The removal plan covers `nostdb.json`, the default `.nost/` tree, `.nostdb`
-databases and known sidecars, and guarded-helper temporary or lock files. It
-preserves unrelated files, unmanaged `.nost` files outside `.nost/`, and parent
-directories. Use `--dry-run` to inspect the exact targets. Removal requires a
-regular `nostdb.json`, rejects filesystem root/home and symlink boundaries, and
-refuses a database whose ownership lock is active.
+The removal plan contains only `.nostdb/` directories below the confirmed
+project root. It preserves unrelated files and parent directories. Use
+`--dry-run` to inspect exact targets. Removal requires a regular root
+`.nostdb/settings.json`, rejects filesystem root/home and symlink boundaries,
+and refuses a database whose ownership lock is active.
