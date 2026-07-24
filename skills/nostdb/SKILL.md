@@ -82,22 +82,28 @@ refuses broad roots, symlink boundaries, or open databases. Stop after removal.
 - `plugin`: Read [safety.md](references/safety.md) and inspect the selected
   repository, resolved commit, manifest, content digest, and declared
   permissions before execution. Prefer an installed `nostdb-plugins` command;
-  when it is unavailable, use the public zero-install manager:
+  when it is unavailable, use `npx` to deliver the public manager:
 
 ```bash
 npx --yes @nostdb/plugins@latest list <owner/repository>
 npx --yes @nostdb/plugins@latest add <owner/repository@plugin> \
   --project <src> --yes
-npx --yes @nostdb/plugins@latest use <owner/repository@plugin> \
-  --project <src> --yes -- <action>
+npx --yes @nostdb/plugins@latest run <plugin> \
+  --project <src> -- <action>
+npx --yes @nostdb/plugins@latest add <owner/repository@plugin> \
+  --global --yes
+npx --yes @nostdb/plugins@latest run <plugin> \
+  --global --project <src> -- <action>
 ```
 
   Only immediate `plugins/*/nostdb-plugin.json` entries are valid. `add` must
-  not execute plugin code; `use` runs from a temporary checkout. Treat
-  third-party plugins as unsandboxed executable code and add `--yes` only after
-  the exact source and capabilities are reviewed. Plugins may invoke public
-  CLI or Server boundaries but must never open, decode, or write `*.nostdb`
-  bytes directly.
+  not execute plugin code, and `run` must refuse an uninstalled plugin.
+  Project installs live below `.nostdb/plugin/`; global installs live below
+  `~/.nostdb/plugin/`. `npx` may download the manager but never provides
+  temporary plugin execution. Treat third-party plugins as unsandboxed
+  executable code and add `--yes` only after the exact source and capabilities
+  are reviewed. Plugins may invoke public CLI or Server boundaries but must
+  never open, decode, or write `*.nostdb` bytes directly.
 
 For any other action, read [safety.md](references/safety.md),
 [project.md](references/project.md), and

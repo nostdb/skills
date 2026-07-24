@@ -35,6 +35,7 @@ RUNTIME_FILES = {
     },
     "nostdb-visualize": {
         "references/core-providers.md",
+        "references/plugin.md",
         "references/query.md",
         "references/safety.md",
         "scripts/nostdb_config.py",

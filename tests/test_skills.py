@@ -1122,9 +1122,33 @@ class SkillTests(unittest.TestCase):
         self.assertIn("plugin   Discover, install, or run a GitHub plugin", skill_instructions)
         self.assertIn("@nostdb/plugins@latest", skill_instructions)
         self.assertIn("plugin discovery, installation, or execution", skill_instructions)
+        self.assertIn(".nostdb/plugin/", skill_instructions)
+        self.assertIn("~/.nostdb/plugin/", skill_instructions)
+        self.assertNotIn("@nostdb/plugins@latest use", skill_instructions)
         self.assertIn("Choose one action and provide the project root when required.", skill_instructions)
         self.assertNotIn("nostdb_skill.py help", skill_instructions)
         self.assertFalse((unrelated_cwd / ".nostdb").exists())
+        visualize_instructions = (
+            installed["nostdb-visualize"] / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "nostdb/plugins@nostdb-visualize", visualize_instructions
+        )
+        self.assertIn(
+            "Never run an uninstalled", visualize_instructions
+        )
+        self.assertIn(
+            "[plugin.md](references/plugin.md)", visualize_instructions
+        )
+        plugin_reference = (
+            installed["nostdb-visualize"] / "references" / "plugin.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "@nostdb/plugins@latest run nostdb-visualize", plugin_reference
+        )
+        self.assertIn("--global --project <project> -- open", plugin_reference)
+        self.assertIn(".nostdb/plugin/", plugin_reference)
+        self.assertIn("~/.nostdb/plugin/", plugin_reference)
 
         native = self.temporary / "nostdb-native"
         native.write_text(

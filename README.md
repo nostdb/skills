@@ -11,7 +11,9 @@ Two canonical Agent Skills provide the public surface:
 - `nostdb` is the default entry point for `help`, guarded NDB-only `init`,
   project-aware `update`, nested root linking, project-local `remove`,
   deterministic Core commands, Schema evolution, ingestion, and exploration.
-- `nostdb-visualize` is the separate graph-representation workflow for reviewable diagrams and visualization datasets.
+- `nostdb-visualize` is the separate graph-representation workflow. Its default
+  interactive view runs the installed `nostdb-visualize` WebGPU plugin; bounded
+  Mermaid, DOT, and JSON output remains available for static review.
 
 Users do not choose separate Core, Schema, ingestion, exploration, or orchestration Skills. The accepted Stage 13 contract requires each Skill to contain its own references and deterministic helpers so either one can be installed and operated independently.
 
@@ -37,9 +39,9 @@ creates `.nostdb/settings.json` plus `.nostdb/root.nostdb` without
 materializing `.nost`, `nostdb update` discovers nested projects and
 synchronizes their configured databases before the parent, and `nostdb remove`
 deletes recognized `.nostdb/` directories below one explicitly selected
-project root. The `plugin` action discovers, installs, or temporarily runs
-third-party `plugins/*` entries through `@nostdb/plugins`. Native project
-creation and dependency-ordered synchronization are also available as
+project root. The `plugin` action discovers, installs, or runs previously
+installed third-party `plugins/*` entries through `@nostdb/plugins`. Native
+project creation and dependency-ordered synchronization are also available as
 `nostdb init` and `nostdb update`. Static help never uses Python.
 
 ## Source-preview quickstart
@@ -79,7 +81,8 @@ Skill installation and CLI execution are separate uses of `npx`:
 
 - `npx skills add ...` downloads an Agent Skill from this GitHub repository.
 - `npx --package=@nostdb/cli@latest nostdb ...` runs the Core-containing CLI selected by the Skill.
-- `npx --yes @nostdb/plugins@latest ...` discovers or runs decentralized plugins.
+- `npx --yes @nostdb/plugins@latest ...` delivers the plugin manager; plugins
+  must be installed in project or global scope before execution.
 
 The wrapper validates installed CLI versions and uses only the official
 `latest` dist-tag when a native command is absent.

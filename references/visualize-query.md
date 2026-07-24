@@ -1,5 +1,10 @@
 # Read-only visualization query boundary
 
+The installed `nostdb-visualize` plugin is the default interactive graph
+surface. Use this direct wrapper only when the user explicitly requests a
+static Mermaid, DOT, or JSON result, or provides a standalone NDB-only database
+without an initialized project.
+
 The visualization wrapper exposes only query, inspect, stats, schema,
 unresolved, and check against one existing `*.nostdb`. It rejects
 synchronization, source commands, remote or database administration,

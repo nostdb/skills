@@ -9,5 +9,6 @@ The general `nostdb` Skill and the separate `nostdb-visualize` Skill load only t
 - `ingest.md`: document/code extraction and guarded source installation
 - `provenance.md`: deterministic document/code evidence records
 - `query.md`: bounded query and administration rules
+- `visualize-query.md`: bounded graph extraction for static visualization output
 
-The standalone Skill directories contain the runtime copies they need. Repository verification requires those copies to match the canonical development sources, with `visualize-query.md`, `nostdb_visualize_core.py`, and the visualization-only safety policy tailored to the read-only Skill.
+The standalone Skill directories contain the runtime copies they need. Repository verification requires those copies to match the canonical development sources, with `visualize-query.md`, `nostdb_visualize_core.py`, the visualization-only safety policy, and the installed-plugin workflow tailored to the read-only Skill.
