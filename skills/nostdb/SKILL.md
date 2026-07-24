@@ -15,7 +15,7 @@ Route an explicit leading action before the general workflow:
   nostdb actions
 
   init     Create a guarded NDB-only project
-  update   Synchronize nested projects and databases
+  update   Synchronize databases and optionally create matching .nost files
   remove   Delete one explicitly confirmed project scope
   model    Design Schemas, Constraints, and graph structure
   ingest   Load documents or code with provenance
@@ -52,8 +52,14 @@ No `.nost` file exists while `source.enabled` is false.
   run:
 
 ```bash
-python3 <skill-root>/scripts/nostdb_skill.py update --src <src>
+python3 <skill-root>/scripts/nostdb_skill.py update --src <src> [--nost]
 ```
+
+Pass `--nost` when the user asks to create human-readable source. It enables
+source materialization and delegates to Core; for a configured database such
+as `.nostdb/root.nostdb`, the canonical single-module file is
+`.nostdb/root.nost` (the `.nost` basename always matches the `*.nostdb`
+basename). Without `--nost`, source visibility is unchanged.
 
 The helper discovers nearest nested projects without crossing symlinks or
 generated dependency directories, refreshes `database.links`, and invokes

@@ -132,6 +132,10 @@ def initialize(args: argparse.Namespace) -> int:
 def update(args: argparse.Namespace) -> int:
     project = args.src.expanduser().resolve()
     provider = resolve_provider(project, args.core_binary)
+    if args.nost:
+        original = read_text(project)
+        updated = update_sections(original, {"source": {"enabled": True}})
+        atomic_write(config_path(project), updated, expected_text=original)
     links = refresh_links(project)
     completed = _run(
         provider.command
@@ -186,6 +190,11 @@ def parser() -> argparse.ArgumentParser:
     )
     update_command.add_argument("--src", type=Path, required=True)
     update_command.add_argument("--core-binary")
+    update_command.add_argument(
+        "--nost",
+        action="store_true",
+        help="materialize the canonical .nost beside the matching .nostdb basename",
+    )
     update_command.set_defaults(handler=update)
     remove_command = commands.add_parser(
         "remove", help="delete guarded project-local NostDB directories"
