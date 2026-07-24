@@ -1068,6 +1068,9 @@ class SkillTests(unittest.TestCase):
         )
         self.assertIn("Respond directly from this file without running Python", skill_instructions)
         self.assertIn("Initialization defaults to Core `0.0.3`", skill_instructions)
+        self.assertIn("nostdb actions", skill_instructions)
+        self.assertIn("init     Create a guarded NDB-only project", skill_instructions)
+        self.assertIn("Choose one action and provide the project root when required.", skill_instructions)
         self.assertNotIn("nostdb_skill.py help", skill_instructions)
         self.assertFalse((unrelated_cwd / ".nostdb").exists())
 

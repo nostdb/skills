@@ -8,12 +8,27 @@ description: Initialize, update, remove, explain, model, populate, inspect, quer
 Route an explicit leading action before the general workflow:
 
 - `help`: Respond directly from this file without running Python, inspecting a
-  project, resolving the CLI, or modifying files. State that `nostdb` supports
-  guarded NDB-only initialization, project-aware updates, nested root linking,
-  scoped removal, source configuration, Schema/Constraint design, ingestion,
-  querying, diagnostics, and maintenance. Direct graph visualization belongs to
+  project, resolving the CLI, or modifying files. Always use this exact compact
+  shape, in this order, with no preamble or feature essay:
+
+  ```text
+  nostdb actions
+
+  init     Create a guarded NDB-only project
+  update   Synchronize nested projects and databases
+  remove   Delete one explicitly confirmed project scope
+  model    Design Schemas, Constraints, and graph structure
+  ingest   Load documents or code with provenance
+  query    Inspect or query the configured database
+  maintain Diagnose, format, synchronize, or repair source state
+
+  Choose one action and provide the project root when required.
+  ```
+
+  Keep each action description verb-first and route visualization requests to
   `nostdb-visualize`. Initialization defaults to Core `0.0.3` with provider
-  `auto`.
+  `auto`. Do not invent a `help` subcommand or run a helper script for this
+  response.
 - `init`: Read [safety.md](references/safety.md),
   [project.md](references/project.md), and
   [core-providers.md](references/core-providers.md). Require the intended
