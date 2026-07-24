@@ -35,15 +35,15 @@ The project policy is:
 ```
 
 - `installed`: use native resolution only and never initiate a network fallback.
-- `npx`: invoke the exact official package version recorded by `core_version`.
-- `auto`: prefer a compatible native command and otherwise use the pinned npx provider.
+- `npx`: invoke the official package from the public `latest` channel.
+- `auto`: prefer a compatible native command and otherwise use the public-latest npx provider.
 - missing: reject incomplete settings; every project must choose a provider.
 
-The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper never uses `latest` or a version range. npx requires the command plus network access or a usable npm cache; failure reports the pinned version and installation alternatives without weakening the version check.
+The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper uses `latest` only when the installed CLI is unavailable. npx requires the command plus network access or a usable npm cache; failure reports the pinned version and installation alternatives without weakening the version check.
 
 The breaking `0.0.3` project contract is not published while it is under
 development. The `auto` and `npx` policies still invoke the exact version
-recorded in `skills.core_version`, never a dist-tag; until that package exists,
+recorded in `skills.core_version`, uses `latest`; until that package exists,
 use a source-built installed provider. Build the sibling CLI repository,
 select `core_provider = "installed"`, and export its reviewed absolute path
 through `NOSTDB_BIN`. A matching `core_binary` value may also be recorded

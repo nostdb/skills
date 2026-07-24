@@ -569,7 +569,7 @@ class SkillTests(unittest.TestCase):
             "import json, os, subprocess, sys\n"
             "with open(os.environ['NPX_LOG'], 'a') as output:\n"
             "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-            "if sys.argv[1:4] != ['--yes', '--package=@nostdb/cli@0.0.3', 'nostdb']:\n"
+            "if sys.argv[1:4] != ['--yes', '--package=@nostdb/cli@latest', 'nostdb']:\n"
             "    sys.exit(97)\n"
             "sys.exit(subprocess.run([os.environ['FAKE_CLI']] + sys.argv[4:]).returncode)\n"
             .format(sys.executable),
@@ -611,7 +611,7 @@ class SkillTests(unittest.TestCase):
         self.assertIsNone(details["binary"])
         self.assertEqual(
             details["command"][1:],
-            ["--yes", "--package=@nostdb/cli@0.0.3", "nostdb"],
+            ["--yes", "--package=@nostdb/cli@latest", "nostdb"],
         )
         explicit = invoke(
             *base,
@@ -1143,7 +1143,7 @@ class SkillTests(unittest.TestCase):
         fake_npx.write_text(
             "#!{}\nimport json, os, sys\n"
             "open(os.environ['NPX_LOG'], 'w').write(json.dumps(sys.argv[1:]))\n"
-            "expected = ['--yes', '--package=@nostdb/cli@0.0.3', 'nostdb', '--version']\n"
+            "expected = ['--yes', '--package=@nostdb/cli@latest', 'nostdb', '--version']\n"
             "print('nostdb 0.0.3') if sys.argv[1:] == expected else sys.exit(97)\n"
             .format(sys.executable),
             encoding="utf-8",
@@ -1168,11 +1168,11 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(payload["provider"], "npx")
         self.assertEqual(
             payload["command"][1:],
-            ["--yes", "--package=@nostdb/cli@0.0.3", "nostdb"],
+            ["--yes", "--package=@nostdb/cli@latest", "nostdb"],
         )
         self.assertEqual(
             json.loads(npx_log.read_text(encoding="utf-8")),
-            ["--yes", "--package=@nostdb/cli@0.0.3", "nostdb", "--version"],
+            ["--yes", "--package=@nostdb/cli@latest", "nostdb", "--version"],
         )
 
     def test_visualization_wrapper_enforces_read_only_standalone_database(self):

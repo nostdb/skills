@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve and run an exactly pinned native or npx NostDB CLI provider."""
+"""Resolve and run a native or public-latest npx NostDB CLI provider."""
 
 import os
 import re
@@ -98,6 +98,22 @@ def checked_version(
         )
 
 
+def latest_version(command: Sequence[str], label: str) -> str:
+    """Read the version selected by an unpinned public distribution tag."""
+    try:
+        completed = subprocess.run(
+            list(command) + ["--version"], check=False, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise CoreResolutionError("cannot execute {}: {}".format(label, error)) from error
+    match = VERSION_OUTPUT.fullmatch(completed.stdout.strip())
+    if completed.returncode != 0 or match is None:
+        detail = completed.stderr.strip() or completed.stdout.strip() or "no version output"
+        raise CoreResolutionError("invalid nostdb --version response from {}: {}".format(label, detail))
+    return match.group(1)
+
+
 def native_provider(candidate: Path, expected: str) -> CoreProvider:
     """Validate one selected native CLI."""
 
@@ -187,7 +203,7 @@ def npx_command(
 
 
 def npx_provider(expected: str) -> CoreProvider:
-    """Validate the pinned official npm package through npx."""
+    """Resolve the official npm package through the public latest channel."""
 
     command = npx_command()
     if not command:
@@ -198,18 +214,18 @@ def npx_provider(expected: str) -> CoreProvider:
     command.extend(
         [
             "--yes",
-            "--package={}@{}".format(NPM_PACKAGE, expected),
+            "--package={}@latest".format(NPM_PACKAGE),
             "nostdb",
         ]
     )
     try:
-        checked_version(command, expected, "{}@{} via npx".format(NPM_PACKAGE, expected))
+        actual = latest_version(command, "{}@latest via npx".format(NPM_PACKAGE))
     except CoreResolutionError as error:
         raise CoreResolutionError(
             "{}; verify npm cache or network access, or install the pinned CLI"
             .format(error)
         ) from error
-    return CoreProvider("npx", command, expected, None)
+    return CoreProvider("npx", command, actual, None)
 
 
 def resolve_provider(
