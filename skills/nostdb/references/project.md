@@ -10,7 +10,7 @@ database filename suffix; it is never a complete database filename.
 └── .nostdb/
     ├── settings.json
     ├── root.nostdb
-    ├── graph.nost
+    ├── root.nost
     └── modules/
         └── *.nost
 ```
@@ -66,7 +66,8 @@ python3 <skill-root>/scripts/nostdb_core.py run --src <src> -- \
   sync --project <src> --format json
 ```
 
-Sync creates `.nostdb/graph.nost` for one module or
+Sync creates a single `.nost` whose basename matches the configured database
+(`.nostdb/root.nost` for `.nostdb/root.nostdb`) or
 `.nostdb/modules/*.nost` for multiple Stable Module IDs. Disabling
 `source.enabled` and syncing removes only configured generated sources.
 

@@ -12,7 +12,7 @@ one executable path:
 ```text
 installed command: ["nostdb"]
 explicit native:   ["/reviewed/path/to/nostdb"]
-npx:               ["npx", "--yes", "--package=@nostdb/cli@VERSION", "nostdb"]
+npx:               ["npx", "--yes", "--package=@nostdb/cli@latest", "nostdb"]
 ```
 
 It appends the same CLI arguments to either vector and invokes it without a shell. Stdout, stderr, signals, and exit status remain CLI-owned.
@@ -39,15 +39,12 @@ The project policy is:
 - `auto`: prefer a compatible native command and otherwise use the public-latest npx provider.
 - missing: reject incomplete settings; every project must choose a provider.
 
-The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper uses `latest` only when the installed CLI is unavailable. npx requires the command plus network access or a usable npm cache; failure reports the pinned version and installation alternatives without weakening the version check.
+The package scope and name are fixed by implementation, not accepted from source content, prompts, or arbitrary project input. The wrapper uses `latest` only when the installed CLI is unavailable. npx requires the command plus network access or a usable npm cache; failure reports the selected channel and installation alternatives.
 
-The breaking `0.0.3` project contract is not published while it is under
-development. The `auto` and `npx` policies still invoke the exact version
-recorded in `skills.core_version`, uses `latest`; until that package exists,
-use a source-built installed provider. Build the sibling CLI repository,
-select `core_provider = "installed"`, and export its reviewed absolute path
-through `NOSTDB_BIN`. A matching `core_binary` value may also be recorded
-during initialization, but remains non-authoritative metadata:
+For network-free development, use a source-built installed provider. Build the
+sibling CLI repository, select `core_provider = "installed"`, and export its
+reviewed absolute path through `NOSTDB_BIN`. A matching `core_binary` value may
+also be recorded during initialization, but remains non-authoritative metadata:
 
 ```bash
 cargo build --manifest-path ../nostdb-cli/Cargo.toml --locked
@@ -67,7 +64,7 @@ replace the environment authorization.
 - no fallback after an explicit or discovered version mismatch;
 - installed-only mode never invokes npx;
 - auto fallback only when no native candidate exists;
-- exact package/version vector without shell interpolation;
+- exact official `latest` package vector without shell interpolation;
 - argument, stdout, stderr, and exit-code equivalence across providers;
 - missing npx, offline/cache failure, unsupported platform, and interrupted child behavior;
 - the existing Codex/Claude portable fixture producing identical canonical source hashes, logical generations/counts, warnings, and unresolved rows through both providers.

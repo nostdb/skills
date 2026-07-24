@@ -37,9 +37,10 @@ creates `.nostdb/settings.json` plus `.nostdb/root.nostdb` without
 materializing `.nost`, `nostdb update` discovers nested projects and
 synchronizes their configured databases before the parent, and `nostdb remove`
 deletes recognized `.nostdb/` directories below one explicitly selected
-project root. Native project creation and dependency-ordered synchronization
-are also available as `nostdb init` and `nostdb update`. Static help never uses
-Python.
+project root. The `plugin` action discovers, installs, or temporarily runs
+third-party `plugins/*` entries through `@nostdb/plugins`. Native project
+creation and dependency-ordered synchronization are also available as
+`nostdb init` and `nostdb update`. Static help never uses Python.
 
 ## Source-preview quickstart
 
@@ -70,17 +71,18 @@ The initializer supports `auto`, `installed`, and `npx` provider policies. Use
 `installed` for the current source preview. `auto` first runs an explicitly
 authorized binary or the `nostdb` command and requires an exact
 `skills.core_version` match; if the command is unavailable, it runs the exact
-`@nostdb/cli@skills.core_version` package through `npx`. `installed` forbids
-that network fallback, while `npx` requires the pinned zero-install provider.
+official `@nostdb/cli@latest` package through `npx`. `installed` forbids
+that network fallback, while `npx` requires the public-latest zero-install
+provider.
 
 Skill installation and CLI execution are separate uses of `npx`:
 
 - `npx skills add ...` downloads an Agent Skill from this GitHub repository.
-- `npx --package=@nostdb/cli@VERSION nostdb ...` runs the Core-containing CLI selected by the Skill.
+- `npx --package=@nostdb/cli@latest nostdb ...` runs the Core-containing CLI selected by the Skill.
+- `npx --yes @nostdb/plugins@latest ...` discovers or runs decentralized plugins.
 
-The breaking `0.0.3` project contract is not yet published. Use `installed`
-with the matching source-built CLI during development. The wrapper never falls
-back to a dist-tag or version range.
+The wrapper validates installed CLI versions and uses only the official
+`latest` dist-tag when a native command is absent.
 
 Skills may enable `source.enabled`, write complete canonical `.nost` files
 below `.nostdb/`, and invoke supported CLI commands. They never parse,

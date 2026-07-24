@@ -75,6 +75,7 @@ def initialize(args: argparse.Namespace) -> int:
     policy = validate_core_provider(args.core_provider)
     root = validate_root_path(args.root)
     provider = resolve_requested_provider(version, policy, args.core_binary)
+    selected_version = provider.version
     invocation = provider.command + [
         "init",
         "--project",
@@ -99,7 +100,7 @@ def initialize(args: argparse.Namespace) -> int:
             raise ConfigError("Core did not create {}".format(database))
         skills = {
             "core_provider": policy,
-            "core_version": version,
+            "core_version": selected_version,
         }
         if args.core_binary:
             skills["core_binary"] = args.core_binary
@@ -116,7 +117,7 @@ def initialize(args: argparse.Namespace) -> int:
     print(
         json.dumps(
             {
-                "core_version": version,
+                "core_version": selected_version,
                 "root": root,
                 "settings": str(config_path(project)),
                 "source_enabled": False,

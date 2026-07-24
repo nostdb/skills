@@ -194,7 +194,7 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(payload["root"], "root.nostdb")
         self.assertTrue((project / ".nostdb").is_dir())
         self.assertTrue((project / ".nostdb" / "root.nostdb").is_file())
-        self.assertFalse((project / ".nostdb" / "graph.nost").exists())
+        self.assertFalse((project / ".nostdb" / "root.nost").exists())
         document = json.loads(
             (project / ".nostdb" / "settings.json").read_text(encoding="utf-8")
         )
@@ -202,6 +202,55 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(document["database"]["root"], "root.nostdb")
         self.assertEqual(document["database"]["links"], [])
         self.assertNotIn("modules", document["source"])
+
+    def test_npx_init_records_the_selected_latest_version(self):
+        project = self.temporary / "latest-init"
+        tools = self.temporary / "latest-init-tools"
+        tools.mkdir()
+        fake_npx = tools / "npx"
+        fake_npx.write_text(
+            "#!{}\n".format(sys.executable)
+            + "import json, pathlib, sys\n"
+            + "prefix = ['--yes', '--package=@nostdb/cli@latest', 'nostdb']\n"
+            + "arguments = sys.argv[1:]\n"
+            + "if arguments == prefix + ['--version']:\n"
+            + "    print('nostdb 0.0.4')\n"
+            + "elif arguments[:3] == prefix and arguments[3:4] == ['init']:\n"
+            + "    command = arguments[3:]\n"
+            + "    project = pathlib.Path(command[command.index('--project') + 1])\n"
+            + "    root = command[command.index('--database') + 1]\n"
+            + "    storage = project / '.nostdb'\n"
+            + "    storage.mkdir(parents=True)\n"
+            + "    settings = {'version': 1, 'database': {'root': root, 'links': []}, "
+            + "                'source': {'version': 1, 'enabled': False}}\n"
+            + "    (storage / 'settings.json').write_text(json.dumps(settings))\n"
+            + "    (storage / root).write_bytes(b'latest fixture')\n"
+            + "    print('{\"columns\":[],\"rows\":[]}')\n"
+            + "else:\n"
+            + "    sys.exit(97)\n",
+            encoding="utf-8",
+        )
+        fake_npx.chmod(0o755)
+        environment = os.environ.copy()
+        environment.pop("NOSTDB_BIN", None)
+        environment["PATH"] = str(tools)
+        initialized = invoke(
+            sys.executable,
+            ROOT / "scripts" / "nostdb_skill.py",
+            "init",
+            "--src",
+            project,
+            "--core-provider",
+            "npx",
+            env=environment,
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+        self.assertEqual(json.loads(initialized.stdout)["core_version"], "0.0.4")
+        document = json.loads(
+            (project / ".nostdb" / "settings.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(document["skills"]["core_version"], "0.0.4")
+        self.assertEqual(document["skills"]["core_provider"], "npx")
 
     def test_public_update_discovers_and_synchronizes_nested_projects(self):
         binary = os.environ.get("NOSTDB_TEST_BIN")
@@ -1070,6 +1119,9 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Initialization defaults to Core `0.0.3`", skill_instructions)
         self.assertIn("nostdb actions", skill_instructions)
         self.assertIn("init     Create a guarded NDB-only project", skill_instructions)
+        self.assertIn("plugin   Discover, install, or run a GitHub plugin", skill_instructions)
+        self.assertIn("@nostdb/plugins@latest", skill_instructions)
+        self.assertIn("plugin discovery, installation, or execution", skill_instructions)
         self.assertIn("Choose one action and provide the project root when required.", skill_instructions)
         self.assertNotIn("nostdb_skill.py help", skill_instructions)
         self.assertFalse((unrelated_cwd / ".nostdb").exists())
@@ -1339,8 +1391,8 @@ class SkillTests(unittest.TestCase):
         codex_root = self.temporary / "codex-fixture"
         claude_root = self.temporary / "claude-fixture"
         self.assertEqual(
-            (codex_root / ".nostdb" / "graph.nost").read_bytes(),
-            (claude_root / ".nostdb" / "graph.nost").read_bytes(),
+            (codex_root / ".nostdb" / "root.nost").read_bytes(),
+            (claude_root / ".nostdb" / "root.nost").read_bytes(),
         )
         self.assertTrue((codex_root / ".nostdb" / "root.nostdb").is_file())
         self.assertTrue((claude_root / ".nostdb" / "root.nostdb").is_file())

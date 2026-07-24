@@ -33,7 +33,7 @@ class CommandUnavailable(RuntimeError):
 
 
 class CoreProvider(NamedTuple):
-    """One shell-free command prefix for invoking the pinned CLI."""
+    """One shell-free command prefix for invoking the selected CLI."""
 
     kind: str
     command: List[str]
@@ -222,7 +222,7 @@ def npx_provider(expected: str) -> CoreProvider:
         actual = latest_version(command, "{}@latest via npx".format(NPM_PACKAGE))
     except CoreResolutionError as error:
         raise CoreResolutionError(
-            "{}; verify npm cache or network access, or install the pinned CLI"
+            "{}; verify npm cache or network access, or install a compatible CLI"
             .format(error)
         ) from error
     return CoreProvider("npx", command, actual, None)
@@ -273,7 +273,7 @@ def resolve_requested_provider(
         "NOSTDB_BIN, or make the nostdb command available on PATH; "
         "skills.core_binary is metadata only "
         "and is never executed automatically, or configure skills.core_provider "
-        "= \"auto\" for pinned npx fallback"
+        "= \"auto\" for public-latest npx fallback"
         .format(expected)
     )
 

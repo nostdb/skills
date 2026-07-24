@@ -1,6 +1,6 @@
 ---
 name: nostdb
-description: Initialize, update, remove, explain, model, populate, inspect, query, validate, and maintain NostDB source projects. Use for `nostdb init`, `nostdb update`, `nostdb remove`, `nostdb help`, project discovery, nested project linking, source setup or cleanup, Schema or Constraint design, document or code ingestion, graph exploration, canonical formatting, synchronization, diagnostics, or any end-to-end NostDB workflow other than graph visualization.
+description: Initialize, update, remove, explain, model, populate, inspect, query, validate, maintain, and extend NostDB source projects. Use for `nostdb init`, `nostdb update`, `nostdb remove`, `nostdb help`, plugin discovery, installation, or execution, project discovery, nested project linking, source setup or cleanup, Schema or Constraint design, document or code ingestion, graph exploration, canonical formatting, synchronization, diagnostics, or any end-to-end NostDB workflow other than graph visualization.
 ---
 
 # Work with NostDB
@@ -20,6 +20,7 @@ Route an explicit leading action before the general workflow:
   model    Design Schemas, Constraints, and graph structure
   ingest   Load documents or code with provenance
   query    Inspect or query the configured database
+  plugin   Discover, install, or run a GitHub plugin
   maintain Diagnose, format, synchronize, or repair source state
 
   Choose one action and provide the project root when required.
@@ -78,6 +79,25 @@ python3 <skill-root>/scripts/nostdb_skill.py remove --src <src>
 Use `--dry-run` first when the scope is not explicit. The helper deletes only
 recognized project-local `.nostdb/` directories, preserves unrelated files, and
 refuses broad roots, symlink boundaries, or open databases. Stop after removal.
+- `plugin`: Read [safety.md](references/safety.md) and inspect the selected
+  repository, resolved commit, manifest, content digest, and declared
+  permissions before execution. Prefer an installed `nostdb-plugins` command;
+  when it is unavailable, use the public zero-install manager:
+
+```bash
+npx --yes @nostdb/plugins@latest list <owner/repository>
+npx --yes @nostdb/plugins@latest add <owner/repository@plugin> \
+  --project <src> --yes
+npx --yes @nostdb/plugins@latest use <owner/repository@plugin> \
+  --project <src> --yes -- <action>
+```
+
+  Only immediate `plugins/*/nostdb-plugin.json` entries are valid. `add` must
+  not execute plugin code; `use` runs from a temporary checkout. Treat
+  third-party plugins as unsandboxed executable code and add `--yes` only after
+  the exact source and capabilities are reviewed. Plugins may invoke public
+  CLI or Server boundaries but must never open, decode, or write `*.nostdb`
+  bytes directly.
 
 For any other action, read [safety.md](references/safety.md),
 [project.md](references/project.md), and
