@@ -1316,7 +1316,7 @@ class SkillTests(unittest.TestCase):
                         "generation",
                         "source_enabled",
                     ],
-                    "rows": [[0, 3, 1, True]],
+                    "rows": [[1, 1, 1, True]],
                 },
                 "source_sha256": "774c768c5e5f34156bbcda0b9d15241fa8ad7e39f545998df0a241c716bb1171",
                 "statistics": {
