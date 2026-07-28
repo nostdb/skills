@@ -6,7 +6,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-for required in README.md AGENTS.md CLAUDE.md LICENSE nostdb/ACTIONS.md; do
+for required in README.md AGENTS.md CLAUDE.md LICENSE nostdb/ACTIONS.md nostdb/RESOLUTION.md nostdb/ENRICHMENT.md; do
   if [ ! -e "$required" ]; then
     echo "missing required file: $required" >&2
     exit 1
@@ -74,6 +74,15 @@ if [ -x tests/dispatch.test.sh ]; then
     exit 1
   }
   echo "dispatch: every check passed"
+fi
+
+if [ -x tests/budget-check.test.sh ]; then
+  tests/budget-check.test.sh >/dev/null || {
+    echo "the budget check tests failed" >&2
+    tests/budget-check.test.sh >&2
+    exit 1
+  }
+  echo "budget: every check passed"
 fi
 
 echo "skills verification passed"
