@@ -123,6 +123,66 @@ check "an installed Engine outranks a remembered decision" "$got" "$work/global/
 rm -f "$state"
 rm -rf "$work/global"
 
+# The arrow-key list, driven through a pseudo-terminal.
+#
+# Everything above runs with no terminal, which is how a script runs it and is also why none of it
+# reaches the menu. The menu is the part a person actually uses, so it is driven here for real:
+# without a pty there is no raw mode, no escape sequences, and nothing to test.
+#
+# Skipped where python3 is absent rather than made a dependency of the suite. Every other check here
+# is `/bin/sh`, and the one that needs more says so.
+if command -v python3 >/dev/null 2>&1; then
+  rm -f "$state"
+  driver="$work/drive.py"
+  cat > "$driver" <<'PYTHON'
+import os, pty, select, sys, time
+
+script, state, keys = sys.argv[1], sys.argv[2], sys.argv[3]
+env = dict(os.environ, NOSTDB_SKILL_STATE=state, PATH="/usr/bin:/bin")
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvpe("/bin/sh", ["/bin/sh", script, "nost_language_version", "2", "1.4.0"], env)
+
+out = b""
+def drain(seconds):
+    global out
+    end = time.time() + seconds
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], 0.1)
+        if ready:
+            try:
+                out += os.read(fd, 4096)
+            except OSError:
+                return
+drain(0.6)
+for key in keys:
+    os.write(fd, b"\x1b[B" if key == "d" else b"\r")
+    drain(0.25)
+drain(0.6)
+code = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
+sys.stdout.write(out.decode("utf-8", "replace"))
+sys.stderr.write(str(code))
+PYTHON
+
+  # Down once selects the second option, npx, and enter takes it.
+  code=$(python3 "$driver" "$resolve" "$state" "dr" 2>&1 >"$work/tui.out" || true)
+  check "the menu resolves what enter selected" \
+    "$(grep -c 'npx --yes --package=nostdb@1.4.0 nostdb' "$work/tui.out")" "1"
+  check "the menu remembers what was selected" "$(cat "$state" 2>/dev/null)" "npx"
+
+  # The marker has to move, or the arrow keys did nothing and the first option was taken by default.
+  check "down moved the selection off the first option" \
+    "$(grep -c '\[x\] Run it with a pinned npx' "$work/tui.out")" "1"
+
+  # The same session is not asked twice.
+  python3 "$driver" "$resolve" "$state" "" >"$work/tui2.out" 2>/dev/null || true
+  check "a second run in one session is not asked again" \
+    "$(grep -c 'up/down or j/k' "$work/tui2.out")" "0"
+  rm -f "$state"
+else
+  echo "skip python3 is absent; the arrow-key menu was not driven"
+fi
+
 fake "$work/twelve/nostdb" 'echo "{\"nost_language_versions\":[12]}"'
 PATH="$work/twelve:/usr/bin:/bin" "$resolve" nost_language_version 1 >/dev/null 2>&1 \
   && r=resolved || r=refused

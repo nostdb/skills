@@ -39,10 +39,36 @@ Each needs a pinned version except `none`. Consent to install a reviewed version
 whatever is newest, which is the same rule as the section below and the reason it is not relaxed
 just because somebody said yes once.
 
-## The decision is remembered, the resolution is not
+## Asked with a list, once per session
 
-The answer is stored in `~/.nostdb/skill-engine`, overridable with `NOSTDB_SKILL_STATE`, as one
-line. `NOSTDB_SKILL_ENGINE_CHOICE` states it without a prompt.
+The question is a list the arrow keys move through, `j` and `k` too, and enter takes the marked line:
+
+```text
+  [ ] Install nostdb@1.4.0 globally
+  [x] Run it with a pinned npx each time, installing nothing
+  [ ] Continue without an Engine, and report what needs one
+  up/down or j/k to move, enter to choose
+```
+
+It is drawn on standard error. Standard output carries the resolved command and nothing else, so a
+caller can use it directly, and a menu printed there would become the command.
+
+A terminal that will not enter raw mode falls back to a typed answer rather than failing. The arrow
+keys are how the question is comfortable, not how it is possible. The terminal is restored however
+the prompt ends, including an interrupt: a shell left in raw mode is a worse outcome than any answer.
+
+## The decision is remembered for a session, and the resolution is not remembered at all
+
+The answer is stored as one line under the temporary directory, keyed by the POSIX session — what
+"session" means, and what every process in one terminal shares. Where there is no controlling
+terminal the parent shell stands in, so repeated calls from one shell agree and a new shell asks
+again. `NOSTDB_SKILL_STATE` overrides the path and `NOSTDB_SKILL_ENGINE_CHOICE` states the answer
+without a prompt.
+
+A session, rather than for ever, because this is a question about right now. Somebody who chose "no
+Engine" to get through one afternoon should not still be living with it next week, and the temporary
+directory means the operating system clears the file instead of a home directory accumulating one per
+session.
 
 What is stored is the decision a person made, not the command it resolved to. A cached path would be
 a lie the moment the Engine was installed, upgraded, or removed, and re-probing costs one process —

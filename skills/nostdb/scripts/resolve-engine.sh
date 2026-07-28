@@ -18,16 +18,19 @@
 #
 # With nothing installed and no remembered choice:
 #
-#   - an interactive session is asked, and the answer is stored;
+#   - an interactive session is asked once, and the answer holds for the rest of that session;
 #   - a non-interactive one exits 1 with the exact commands, unchanged. A script that paused for a
 #     prompt nobody could answer would hang, and one that installed software unasked is worse.
 #
-# The choice lives in a single-line file, `~/.nostdb/skill-engine` by default. It records a decision
-# a person made, not a resolved path: a cached path would be a lie the moment the Engine was
+# The choice is remembered for the **session** that made it, not for ever, and it records a decision
+# a person made rather than a resolved path: a cached path would be a lie the moment the Engine was
 # installed, upgraded, or removed, and re-probing costs one process.
 #
+# The question is asked with a list the arrow keys move through, falling back to a typed answer on a
+# terminal that will not enter raw mode.
+#
 # Exit codes: 0 resolved, 1 nothing compatible and no decision, 2 used incorrectly,
-#             3 the caller chose to continue with no Engine.
+#             3 the caller chose to continue with no Engine, 130 the prompt was interrupted.
 set -eu
 
 usage() {
@@ -40,9 +43,29 @@ contract=$1
 required=$2
 pinned=${3:-}
 
-# Overridable so a test never touches a real home directory, and so a CI run can state the decision
-# up front instead of being asked.
-state=${NOSTDB_SKILL_STATE:-$HOME/.nostdb/skill-engine}
+# The decision is remembered for the session that made it, not for ever.
+#
+# A permanent answer is the wrong lifetime for this question. Somebody who chose "no Engine" to get
+# through one afternoon should not still be living with it next week, and somebody who installed one
+# since is asked nothing either way — an installed Engine never consults the decision at all.
+#
+# The key is the POSIX session, which is what "session" means and is shared by every process in one
+# terminal. Where there is no controlling terminal `ps` reports 0, and the parent shell stands in:
+# repeated calls from one shell agree, and a new shell asks again. The file lives in the temporary
+# directory so the operating system clears it, rather than accumulating one file per session for ever
+# under a home directory.
+session_key() {
+  sid=$(ps -o sess= -p $$ 2>/dev/null | tr -d ' \t\n') || sid=
+  if [ -n "$sid" ] && [ "$sid" != "0" ]; then
+    echo "$sid"
+  else
+    echo "shell${PPID:-0}"
+  fi
+}
+
+# Overridable so a test never touches real state, and so a CI run can state the decision up front
+# instead of being asked.
+state=${NOSTDB_SKILL_STATE:-${TMPDIR:-/tmp}/nostdb-skill-engine.$(session_key)}
 choice=${NOSTDB_SKILL_ENGINE_CHOICE:-}
 
 # A candidate must answer `--version --json` and support the contract version asked for.
@@ -127,25 +150,120 @@ if [ -z "$choice" ] && [ -r "$state" ]; then
 fi
 choice=$(normalize "$choice")
 
-# Asked only when a person can answer. `set -eu` would abort on a read at end-of-input, and a
-# script blocked on a prompt is worse than one that refuses.
+# The options, as `key|label` lines. sh has no arrays, and two parallel lists get out of step the
+# first time somebody edits one of them.
+options="install|Install nostdb${pinned:+@$pinned} globally"
+if [ -n "$pinned" ]; then
+  options="$options
+npx|Run it with a pinned npx each time, installing nothing"
+fi
+options="$options
+none|Continue without an Engine, and report what needs one"
+option_count=$(printf '%s\n' "$options" | wc -l | tr -d ' ')
+
+# One keypress, named. Read as hex so a byte that is not text cannot be mistaken for one.
+#
+# An arrow key arrives as three bytes, escape then `[` then a letter, so escape reads two more. `j`
+# and `k` move too: somebody who lives in a pager expects them to, and it costs two lines.
+read_key() {
+  first=$(dd bs=1 count=1 2>/dev/null | od -An -tx1 | tr -d ' \t\n')
+  case $first in
+    1b)
+      rest=$(dd bs=1 count=2 2>/dev/null | od -An -tx1 | tr -d ' \t\n')
+      case $rest in
+        5b41) echo up ;;
+        5b42) echo down ;;
+        *) echo other ;;
+      esac
+      ;;
+    0a | 0d) echo enter ;;
+    20) echo enter ;;
+    6b) echo up ;;
+    6a) echo down ;;
+    03 | 71) echo quit ;;
+    "") echo quit ;;
+    *) echo other ;;
+  esac
+}
+
+# Drawn on standard error. Standard output carries the resolved command and nothing else, so a caller
+# can use it directly — a menu printed there would become the command.
+draw_options() {
+  index=1
+  printf '%s\n' "$options" | while IFS='|' read -r key label; do
+    if [ "$index" = "$selected" ]; then
+      printf '  \033[1m[x] %s\033[0m\n' "$label" >&2
+    else
+      printf '  [ ] %s\n' "$label" >&2
+    fi
+    index=$((index + 1))
+  done
+}
+
+selected_key() {
+  printf '%s\n' "$options" | sed -n "${selected}p" | cut -d'|' -f1
+}
+
+# Falls back to a typed answer rather than failing. A terminal that will not enter raw mode, or a
+# `stty` that is not there, must not stop the question being asked — the point is the decision, and
+# the arrow keys are how it is comfortable rather than how it is possible.
+choose_typed() {
+  printf 'choice for this session [i/%sn]: ' "${pinned:+x/}" >&2
+  if IFS= read -r answer; then
+    normalize "$answer"
+  else
+    echo ""
+  fi
+}
+
+choose_with_keys() {
+  saved=$(stty -g 2>/dev/null) || return 1
+  stty raw -echo 2>/dev/null || return 1
+  # Restored however this ends, including an interrupt. A terminal left in raw mode is a broken
+  # shell, which is a worse outcome than any answer to this question.
+  trap 'stty "$saved" 2>/dev/null; exit 130' INT TERM
+
+  selected=1
+  draw_options
+  printf '\033[2m  up/down or j/k to move, enter to choose\033[0m' >&2
+
+  while :; do
+    key=$(read_key)
+    case $key in
+      up) [ "$selected" -gt 1 ] && selected=$((selected - 1)) ;;
+      down) [ "$selected" -lt "$option_count" ] && selected=$((selected + 1)) ;;
+      enter) break ;;
+      quit) selected=0; break ;;
+      *) ;;
+    esac
+    # Back to the top of the list, then redraw it. The hint line is one row below the options, so it
+    # is cleared and rewritten with them.
+    printf '\r\033[%dA' "$option_count" >&2
+    draw_options
+    printf '\033[K\033[2m  up/down or j/k to move, enter to choose\033[0m' >&2
+  done
+
+  stty "$saved" 2>/dev/null
+  trap - INT TERM
+  printf '\n' >&2
+  [ "$selected" = "0" ] && return 1
+  selected_key
+}
+
+# Asked only when a person can answer. `set -eu` would abort on a read at end-of-input, and a script
+# blocked on a prompt is worse than one that refuses.
 if [ -z "$choice" ] && [ -t 0 ] && [ -t 2 ]; then
   echo "no installed nostdb supports $contract $required." >&2
   echo >&2
-  echo "  [i] install it globally${pinned:+ (pinned to $pinned)}" >&2
-  if [ -n "$pinned" ]; then
-    echo "  [x] run it with a pinned npx each time, installing nothing" >&2
+  if picked=$(choose_with_keys); then
+    choice=$(normalize "$picked")
+  else
+    choice=$(choose_typed)
   fi
-  echo "  [n] continue without an Engine" >&2
-  echo >&2
-  printf 'choice, remembered for next time [i/%sn]: ' "${pinned:+x/}" >&2
-  if IFS= read -r answer; then
-    choice=$(normalize "$answer")
-    # An unreadable answer is not remembered. Storing a guess would make the next run act on
-    # something nobody chose, and this way the question is simply asked again.
-    if [ -n "$choice" ]; then
-      remember "$choice"
-    fi
+  # An unreadable answer is not remembered. Storing a guess would make the rest of the session act on
+  # something nobody chose, and this way the question is simply asked again.
+  if [ -n "$choice" ]; then
+    remember "$choice"
   fi
 fi
 
@@ -174,7 +292,7 @@ case $choice in
       exit 1
     fi
     # Echoed before it runs. Installing software is a visible act even when it was agreed to once.
-    echo "installing nostdb@$pinned globally, as chosen earlier" >&2
+    echo "installing nostdb@$pinned globally, as chosen for this session" >&2
     echo "  npm install --global nostdb@$pinned" >&2
     if ! npm install --global "nostdb@$pinned" >&2; then
       echo "the install failed; nothing was resolved" >&2
@@ -191,7 +309,7 @@ case $choice in
     ;;
 
   none)
-    echo "continuing with no Engine, as chosen earlier" >&2
+    echo "continuing with no Engine, as chosen for this session" >&2
     echo "actions that need one will report what they could not do" >&2
     exit 3
     ;;

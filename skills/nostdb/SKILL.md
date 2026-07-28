@@ -50,9 +50,13 @@ An installed Engine resolves in one process, and a pinned version no longer make
 automatic answer. It used to: passing one meant every action paid npx's fetch and start-up cost
 without anyone choosing it.
 
-With nothing installed, the choice is asked **once** and remembered in `~/.nostdb/skill-engine`:
-install a pinned version, use a pinned `npx` each time, or continue with no Engine. Set
-`NOSTDB_SKILL_ENGINE_CHOICE` to `i`, `x`, or `n` to state it without being asked.
+With nothing installed, a list appears that the arrow keys move through — install a pinned version,
+use a pinned `npx` each time, or continue with no Engine — and the answer holds for **that session**
+rather than for ever. Set `NOSTDB_SKILL_ENGINE_CHOICE` to `i`, `x`, or `n` to state it without being
+asked.
+
+A session is asked once. A new one asks again, because somebody who chose "no Engine" to get through
+one afternoon should not still be living with it next week.
 
 A non-interactive run is never prompted and never installs anything on its own. It exits `1` with
 the exact commands, because a script that paused for a question nobody could answer would hang,
