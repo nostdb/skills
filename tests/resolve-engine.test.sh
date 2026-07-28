@@ -7,7 +7,7 @@
 # working installation cannot produce.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-resolve="$here/../scripts/resolve-engine.sh"
+resolve="$here/../skills/nostdb/scripts/resolve-engine.sh"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 

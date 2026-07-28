@@ -6,7 +6,12 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-for required in README.md AGENTS.md CLAUDE.md LICENSE nostdb/ACTIONS.md nostdb/RESOLUTION.md nostdb/ENRICHMENT.md; do
+# SKILL.md is deliberately not in this list. Which documents this Skill publishes is specific
+# to it and belongs here; whether a definition exists and is discoverable is a property of
+# every skill, and the layout checks below own it — naming one path here as well would make
+# their diagnostic unreachable and leave the general rule unproven.
+for required in README.md AGENTS.md CLAUDE.md LICENSE \
+    skills/nostdb/ACTIONS.md skills/nostdb/RESOLUTION.md skills/nostdb/ENRICHMENT.md; do
   if [ ! -e "$required" ]; then
     echo "missing required file: $required" >&2
     exit 1
@@ -22,6 +27,96 @@ if ! grep -q '^ *Apache License$' LICENSE; then
   echo "LICENSE must be the Apache License" >&2
   exit 1
 fi
+
+# A Skill is installable only if an installer can find it and the folder it copies is
+# complete. Both are checked here, because "independently installable" is a claim this
+# repository makes in its own README and nothing verified it: until now it shipped an action
+# table, four scripts, and no SKILL.md at all.
+#
+# An installer scans `skills/<name>/SKILL.md` and `skills/<category>/<name>/SKILL.md`, and
+# copies the whole skill folder. Anything a definition references from outside that folder is
+# absent once installed.
+#
+# Depth is part of the contract, so the two layouts are written as a pattern rather than as a
+# search that would accept any depth: a definition one level deeper is a file this repository
+# contains and no installer offers.
+discovered='^skills/[^/]+/SKILL\.md$|^skills/[^/]+/[^/]+/SKILL\.md$'
+found=$(find . -name SKILL.md -not -path './.git/*' 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
+definitions=$(printf '%s\n' "$found" | grep -E "$discovered" || true)
+if [ -z "$definitions" ]; then
+  echo "no installable skill found; an installer discovers skills/<name>/SKILL.md" >&2
+  exit 1
+fi
+
+# Anywhere else is a definition nobody can ask for: outside `skills/`, too shallow, or too
+# deep. This also catches one left behind by a move.
+if undiscoverable=$(printf '%s\n' "$found" | grep -vE "$discovered" | grep .); then
+  echo "these definitions are at a path no installer discovers:" >&2
+  printf '%s\n' "$undiscoverable" >&2
+  exit 1
+fi
+
+for definition in $definitions; do
+  folder=$(dirname "$definition")
+  name=$(basename "$folder")
+
+  # Frontmatter, and it has to come first: a definition whose opening delimiter is not on
+  # line 1 is read as prose, so the skill installs and then never triggers.
+  if [ "$(head -1 "$definition")" != "---" ]; then
+    echo "$definition must open with a --- frontmatter delimiter on line 1" >&2
+    exit 1
+  fi
+
+  closing=$(awk 'NR > 1 && $0 == "---" { print NR; exit }' "$definition")
+  if [ -z "$closing" ]; then
+    echo "$definition has no closing --- frontmatter delimiter" >&2
+    exit 1
+  fi
+  frontmatter=$(sed -n "2,$((closing - 1))p" "$definition")
+
+  # `name` and `description` are what an agent selects a skill by. A definition with no
+  # description never triggers, however good its body is.
+  for field in name description; do
+    if ! printf '%s\n' "$frontmatter" | grep -q "^$field: *[^ ]"; then
+      echo "$definition declares no $field in its frontmatter" >&2
+      exit 1
+    fi
+  done
+
+  declared=$(printf '%s\n' "$frontmatter" | sed -n 's/^name: *//p' | head -1)
+  if [ "$declared" != "$name" ]; then
+    echo "$definition declares the name $declared and sits in $name; the two must agree" >&2
+    exit 1
+  fi
+
+  # Every reference a definition makes must resolve inside its own folder, because the folder
+  # is the unit that gets copied. Two extractions, both unambiguous: a Markdown link target,
+  # and a `scripts/<name>.sh` invocation. A looser path-shaped scan would fire on
+  # `.nostdb/root.nost`, which is a path in a user's project rather than a file in this one.
+  references=$(
+    {
+      grep -oE '\]\([^)#][^)]*\)' "$definition" | sed 's/^](//; s/)$//'
+      grep -oE 'scripts/[A-Za-z0-9_-]+\.sh' "$definition"
+    } | grep -v '://' | LC_ALL=C sort -u
+  )
+  for reference in $references; do
+    if [ ! -e "$folder/$reference" ]; then
+      echo "$definition references $reference, which is not in the folder an installer copies" >&2
+      exit 1
+    fi
+  done
+
+  # A script a definition invokes has to be executable here. Nothing that copies the folder
+  # will add the bit afterwards.
+  for script in $(find "$folder" -name '*.sh'); do
+    if [ ! -x "$script" ]; then
+      echo "$script is not executable, so an installed skill could not run it" >&2
+      exit 1
+    fi
+  done
+
+  echo "installable: $folder"
+done
 
 # Only the Engine writes .nostdb. A Skill that shipped a writer would be a second one.
 if grep -rn --include='*.md' --include='*.json' --include='*.sh' \

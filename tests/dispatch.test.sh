@@ -6,8 +6,10 @@
 # with an undeclared action would be one nobody could budget for.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-dispatch="$here/../scripts/dispatch.sh"
-table="$here/../nostdb/ACTIONS.md"
+skill="$here/../skills/nostdb"
+dispatch="$skill/scripts/dispatch.sh"
+table="$skill/ACTIONS.md"
+definition="$skill/SKILL.md"
 
 failures=0
 check() {
@@ -43,38 +45,59 @@ check "a model-requiring action exits 1, not 2" "$r" "1"
 "$dispatch" frobnicate >/dev/null 2>&1 && r=$? || r=$?
 check "an unknown action exits 2" "$r" "2"
 
-# Both directions between the table and the dispatcher.
+# Three vocabularies, one map.
 #
-# Stated as a list rather than counted, because counting got it wrong: `build-nost` is the
+# SKILL.md carries the map, because SKILL.md is the file an agent actually reads. It used to
+# live here, in a case statement, which meant the one place the table's vocabulary and the
+# dispatcher's met was a test no running agent ever opens: an agent could read the table,
+# learn that `/nostdb . --ai=off` exists, and have no way to discover that the action serving
+# it is called `build`.
+#
+# So the map is shipped and this checks it, rather than the reverse. Each row names an action,
+# the `/nostdb` invocation it serves, and its declared AI usage.
+# Anchored on the third column being a `/nostdb` invocation, not on column count. SKILL.md
+# holds more than one table, and an earlier version of this matched the natural-language gate's
+# two-column table as well, reading `execute` as an action that served a sentence of prose.
+map=$(
+  awk -F'|' '
+    $2 ~ /^ *`[a-z-]+` *$/ && $3 ~ /^ *`\/nostdb / && $4 ~ /^ *(none|optional|required) *$/ {
+      for (field = 2; field <= 4; field++) {
+        gsub(/^ +| +$/, "", $field)
+        gsub(/`/, "", $field)
+      }
+      print $2 "\t" $3 "\t" $4
+    }
+  ' "$definition"
+)
+[ -n "$map" ] || { echo "FAIL SKILL.md declares no action map" >&2; exit 1; }
+
+# The dispatcher maps exactly the actions SKILL.md declares as runnable without a model.
+#
+# Stated as a set rather than counted, because counting got it wrong: `build-nost` is the
 # AI-free path of an *optional* row, and `optional` means precisely that the action completes
 # without a model. So the dispatcher legitimately maps more than the `none` rows, and an
 # arithmetic check on prose could not express that.
-#
-# This list is the one place the table's vocabulary and the dispatcher's meet. A mapping
-# added without a row here fails, and a row here without a mapping fails.
-bridge="help build build-nost sync query-cypher view plugin-add"
+ai_free=$(printf '%s\n' "$map" | awk -F'\t' '$3 != "required" { printf "%s ", $1 }')
 labels=$(grep -oE '^  [a-z-]+\)$' "$dispatch" | tr -d ' )' | tr '\n' ' ')
-expected=$(printf '%s ' $bridge)
-check "the dispatcher maps exactly the bridged actions" "$labels" "$expected"
+check "the dispatcher maps exactly the AI-free actions SKILL.md declares" "$labels" "$ai_free"
 
-# And every bridged action is one the table declares as runnable without a model.
-for action in $bridge; do
-  case "$action" in
-    help)          row='`/nostdb help`' ;;
-    build)         row='`/nostdb . --ai=off`' ;;
-    build-nost)    row='`/nostdb . --nost`' ;;
-    sync)          row='root.nost --sync' ;;
-    query-cypher)  row='`/nostdb query --cypher' ;;
-    view)          row='`/nostdb view .`' ;;
-    plugin-add)    row='`/nostdb plugin add' ;;
-  esac
-  if grep -qF -- "$row" "$table"; then
-    echo "ok   $action is declared in the table"
-  else
-    echo "FAIL $action has no row in the table" >&2
-    failures=$((failures + 1))
+# And every invocation SKILL.md promises is one the table declares, with the same AI usage.
+# A shipped document promising an action the table never declared would be describing a Skill
+# that does not exist, which is the failure this file has always existed to prevent.
+printf '%s\n' "$map" | while IFS="$(printf '\t')" read -r action serves usage; do
+  row=$(grep -F -- "\`$serves\`" "$table" || true)
+  if [ -z "$row" ]; then
+    echo "FAIL $action serves $serves, which the table does not declare" >&2
+    exit 1
   fi
-done
+  case "$row" in
+    *"| $usage |"*) echo "ok   $action serves $serves, declared $usage" ;;
+    *)
+      echo "FAIL $action is declared $usage in SKILL.md and otherwise in the table" >&2
+      exit 1
+      ;;
+  esac
+done || failures=$((failures + 1))
 
 # A `required` row must not be reachable through this path at all.
 for action in query-natural enrich; do

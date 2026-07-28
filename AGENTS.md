@@ -16,6 +16,22 @@ Write everything in this repository in English only, regardless of the language 
 written in. This covers documentation, skill definitions, prompts, identifiers, comments,
 commit messages, diagnostics, and every line a Skill prints.
 
+## Repository layout
+
+A Skill lives at `skills/<name>/SKILL.md`, which is the path an installer discovers, and the
+skill folder is the unit it copies.
+
+- the definition's frontmatter declares `name`, matching its directory, and `description`,
+  which is what an agent selects the skill by;
+- everything a definition references lives inside its own folder. A reference reaching outside
+  it resolves in this repository and is missing from every install;
+- a script a definition invokes is committed executable;
+- `tests/` and `scripts/verify-repository.sh` stay outside the skill folders. They verify this
+  repository rather than travelling with an install.
+
+`scripts/verify-repository.sh` enforces all of it. Do not add a `SKILL.md` anywhere else: a
+definition an installer cannot find is a Skill nobody can ask for.
+
 ## Ownership boundary
 
 A Skill is the AI-capable extension of the CLI and implements no database behavior.

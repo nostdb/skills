@@ -6,7 +6,7 @@
 # principle, so the decision to call it is the part a fixture can pin.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-check="$here/../scripts/budget-check.sh"
+check="$here/../skills/nostdb/scripts/budget-check.sh"
 
 failures=0
 expect() {
