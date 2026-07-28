@@ -43,6 +43,21 @@ A Skill checks the **contract** versions it needs, not the Engine version. An En
 releases newer that still reads `nost_language_version` 2 is compatible; one that dropped it
 is not, however close the version numbers look.
 
+Ask by the contract key, which is what the version registry publishes and what every document
+names. The report answers with what the build *supports*, which is a list, so its key is the
+contract key plus an `s`:
+
+```bash
+scripts/resolve-engine.sh nost_language_version 2   # asks; the report answers
+                                                    # "nost_language_versions": [2]
+```
+
+That relationship is written down because getting it wrong is invisible: asking for the singular
+key finds nothing in a real report, and a working Engine is reported incompatible. Every fake in
+this repository's own suite answered the singular key, so the fakes agreed with the question and
+neither agreed with the Engine — which is why the suite now checks a real report when one is on
+the path.
+
 A command that does not answer `--version --json` is not treated as an old `nostdb`. It is
 treated as not being `nostdb` at all, because something on the path with the right name and
 the wrong behavior is more dangerous than nothing on the path.

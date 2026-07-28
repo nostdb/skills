@@ -27,12 +27,17 @@ pinned=${3:-}
 compatible() {
   candidate=$1
   reply=$("$candidate" --version --json 2>/dev/null) || return 1
-  echo "$reply" | grep -q "\"$contract\"" || return 1
+  # The argument is the *contract key*, which is what the version registry publishes and what every
+  # document names: `nost_language_version`. The report answers with what a build supports, which is
+  # a list, so its key is that plus an `s`. Asking for the singular key found nothing in a real
+  # report, and every fake here agreed with the question rather than with the Engine.
+  reported="${contract}s"
+  echo "$reply" | grep -q "\"$reported\"" || return 1
   # The reply lists supported versions as a JSON array of numbers. A match must be on a
   # whole number, so that supporting 12 is not read as supporting 1.
   echo "$reply" \
     | tr -d ' \n' \
-    | sed -n "s/.*\"$contract\":\[\([^]]*\)\].*/\1/p" \
+    | sed -n "s/.*\"$reported\":\[\([^]]*\)\].*/\1/p" \
     | tr ',' '\n' \
     | grep -qx "$required"
 }

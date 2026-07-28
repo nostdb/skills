@@ -31,28 +31,28 @@ supports='echo "{\"product\":\"nostdb\",\"nost_language_versions\":[2],\"setting
 other='echo "{\"product\":\"nostdb\",\"nost_language_versions\":[3],\"settings_versions\":[1]}"'
 cd "$work"
 
-PATH="/usr/bin:/bin" "$resolve" nost_language_versions 2 >/dev/null 2>&1 \
+PATH="/usr/bin:/bin" "$resolve" nost_language_version 2 >/dev/null 2>&1 \
   && r=resolved || r=refused
 check "nothing installed is a refusal, not a guess" "$r" "refused"
 
 fake "$work/global/nostdb" "$supports"
-got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" nost_language_versions 2)
+got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" nost_language_version 2)
 check "a compatible global is used" "$got" "$work/global/nostdb"
 
 # A project that pinned a version did so on purpose.
 fake "$work/node_modules/.bin/nostdb" "$supports"
-got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" nost_language_versions 2)
+got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" nost_language_version 2)
 check "project-local beats a global" "$got" "./node_modules/.bin/nostdb"
 
 fake "$work/node_modules/.bin/nostdb" "$other"
-got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" nost_language_versions 2)
+got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" nost_language_version 2)
 check "an incompatible local falls through" "$got" "$work/global/nostdb"
 
 # The same two candidates, asked about a contract they both support: the local one wins
 # again. Together with the check above — where the local did not support what was asked and
 # was passed over — this is what "compatibility is per contract" means. One resolution order
 # does not decide every question; each contract is asked separately.
-got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" settings_versions 1)
+got=$(PATH="$work/global:/usr/bin:/bin" "$resolve" settings_version 1)
 check "a contract both support resolves to the local one" "$got" "./node_modules/.bin/nostdb"
 
 # Something with the right name and the wrong behavior is worse than nothing.
@@ -60,14 +60,41 @@ rm -rf "$work/node_modules"
 printf '#!/bin/sh\nexit 0\n' > "$work/impostor_nostdb"
 mkdir -p "$work/impostor" && mv "$work/impostor_nostdb" "$work/impostor/nostdb"
 chmod +x "$work/impostor/nostdb"
-PATH="$work/impostor:/usr/bin:/bin" "$resolve" nost_language_versions 2 >/dev/null 2>&1 \
+PATH="$work/impostor:/usr/bin:/bin" "$resolve" nost_language_version 2 >/dev/null 2>&1 \
   && r=resolved || r=refused
 check "a command that does not answer is refused" "$r" "refused"
 
 fake "$work/twelve/nostdb" 'echo "{\"nost_language_versions\":[12]}"'
-PATH="$work/twelve:/usr/bin:/bin" "$resolve" nost_language_versions 1 >/dev/null 2>&1 \
+PATH="$work/twelve:/usr/bin:/bin" "$resolve" nost_language_version 1 >/dev/null 2>&1 \
   && r=resolved || r=refused
 check "supporting 12 is not supporting 1" "$r" "refused"
+
+# The fakes answer the shape a real Engine answers, checked against one when there is one.
+#
+# This is the gap the budget suite found in Stage 10, in this same repository: a fixture whose author
+# also wrote the thing it tests agrees with the author's idea of the document. Here the fakes emitted
+# the *contract* key and the script asked for the contract key, so both agreed — and a real report,
+# which answers with the key plus an `s`, matched neither.
+if command -v nostdb >/dev/null 2>&1; then
+  real=$(nostdb --version --json 2>/dev/null || true)
+  case "$real" in
+    *'"nost_language_versions"'*)
+      echo "ok   a real Engine answers the key the fakes answer" ;;
+    *)
+      echo "FAIL a real nostdb reports something these fakes do not: $real" >&2
+      failures=$((failures + 1)) ;;
+  esac
+  # And the script can actually read it, which is the whole question.
+  if nostdb --version --json 2>/dev/null | grep -q '"nost_language_versions"'; then
+    got=$(PATH="$(dirname "$(command -v nostdb)"):/usr/bin:/bin" "$resolve" nost_language_version 2 2>/dev/null || echo REFUSED)
+    case "$got" in
+      REFUSED) echo "FAIL a real Engine on the path was refused" >&2; failures=$((failures + 1)) ;;
+      *) echo "ok   a real Engine on the path resolves" ;;
+    esac
+  fi
+else
+  echo "skip no nostdb on the path; the real-report check did not run"
+fi
 
 if grep -qE 'package=nostdb[^@]' "$resolve"; then
   echo "FAIL an unpinned npx fallback is present" >&2
