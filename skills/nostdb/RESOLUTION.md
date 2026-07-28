@@ -68,6 +68,22 @@ that would download nothing usable. WSL reports Linux and is a published target,
 These scripts are `/bin/sh` and need a POSIX shell regardless. That is the smaller of the two
 constraints: a Windows user who supplies one still has no Engine to run.
 
+## Who asks
+
+Whoever has a terminal. That is usually **not** this script.
+
+A Skill is normally run by an agent, which invokes it with no controlling terminal, so the menu below
+is unreachable in the common case. Resolution therefore exits `1` with a marker line —
+`decision required: install | npx | none` — and the caller asks the person and states the answer in
+`NOSTDB_SKILL_ENGINE_CHOICE`. The tokens in the marker are exactly the ones the variable takes, so
+what was read can be passed straight back.
+
+An answer that arrives that way is **stored**, not just honored. Otherwise "once per session" would
+describe only the prompt, and the prompt is the path nobody takes: a caller would have to repeat the
+answer on every call, which is a question asked once and answered forever after by hand.
+
+The menu below is for a person running this directly.
+
 ## Asked with a list, once per session
 
 The question is a list the arrow keys move through, `j` and `k` too, and enter takes the marked line:

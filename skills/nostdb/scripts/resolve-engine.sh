@@ -163,10 +163,20 @@ normalize() {
 }
 
 # A remembered choice, or one the environment states, is honored without asking again.
-if [ -z "$choice" ] && [ -r "$state" ]; then
+stated=$(normalize "$choice")
+if [ -z "$stated" ] && [ -r "$state" ]; then
   choice=$(head -n 1 "$state" 2>/dev/null | tr -d ' \t\r\n')
+  choice=$(normalize "$choice")
+else
+  choice=$stated
+  # Stored as well as honored. The prompt below is unreachable without a terminal, which is exactly
+  # how a Skill is normally run — an agent invokes it — so the environment is the *usual* way a
+  # decision arrives, not an escape hatch. Remembering it is what makes one question cover a session
+  # instead of the caller passing the answer on every call.
+  if [ -n "$choice" ]; then
+    remember "$choice"
+  fi
 fi
-choice=$(normalize "$choice")
 
 # The options, as `key|label` lines. sh has no arrays, and two parallel lists get out of step the
 # first time somebody edits one of them.
@@ -337,8 +347,17 @@ case $choice in
     ;;
 esac
 
+# What a caller with no terminal gets, which is the normal case: an agent runs this.
+#
+# A marker line rather than prose, because the caller acting on it is a program deciding what to ask
+# a person. The tokens are the ones NOSTDB_SKILL_ENGINE_CHOICE takes, so what is read here can be
+# passed straight back.
 echo "no nostdb supporting $contract $required was found" >&2
-echo "install one of these, or re-run interactively to choose and have it remembered:" >&2
-install_commands
-echo "to state the choice without a prompt, set NOSTDB_SKILL_ENGINE_CHOICE to i, x, or n" >&2
+echo "decision required: install | npx | none" >&2
+echo "  install  npm install --global nostdb${pinned:+@$pinned}" >&2
+echo "  npx      npx --yes --package=nostdb${pinned:+@$pinned} nostdb   # installs nothing" >&2
+echo "  none     resolve nothing, and report what needed an Engine" >&2
+echo >&2
+echo "set NOSTDB_SKILL_ENGINE_CHOICE to install, npx, or none and run this again." >&2
+echo "the answer is stored for this session, so ask once and later calls need nothing." >&2
 exit 1

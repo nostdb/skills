@@ -119,6 +119,22 @@ FAKE_NPM_LOG="$work/npm.pinned" \
 check "a pin the caller passed is used for the install" \
   "$(cat "$work/npm.pinned" 2>/dev/null)" "install --global nostdb@1.4.0"
 
+# The path an agent actually takes: no terminal, so the answer arrives in the environment once and
+# every later call is expected to need nothing. This is what makes it once per *session* rather than
+# once per call, and it was not true until the environment-stated answer was stored as well as used.
+rm -f "$state"
+got=$(PATH="/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=npx "$resolve" nost_language_version 2 </dev/null)
+check "an answer stated without a terminal resolves" "$got" "npx --yes --package=nostdb nostdb"
+check "and is stored, so the session is not asked again" "$(cat "$state" 2>/dev/null)" "npx"
+got=$(PATH="/usr/bin:/bin" "$resolve" nost_language_version 2 </dev/null)
+check "a later call needs no environment at all" "$got" "npx --yes --package=nostdb nostdb"
+
+# The refusal has to tell a caller what to ask, in the tokens the variable takes.
+rm -f "$state"
+PATH="/usr/bin:/bin" "$resolve" nost_language_version 2 </dev/null 2>"$work/ask.err" || true
+check "the refusal names the decision it needs" \
+  "$(grep -c 'decision required: install | npx | none' "$work/ask.err")" "1"
+
 # A remembered decision is honored with nothing in the environment, which is the whole point of
 # remembering it.
 printf 'none\n' > "$state"

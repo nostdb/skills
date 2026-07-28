@@ -55,14 +55,30 @@ An installed Engine resolves in one process, and a pinned version no longer make
 automatic answer. It used to: passing one meant every action paid npx's fetch and start-up cost
 without anyone choosing it.
 
-With nothing installed, a list appears that the arrow keys move through, and the answer holds for
-**that session** rather than for ever:
+### With nothing installed, ask once for the session
 
-- **install it** globally with npm;
-- **do not install it**, and run it with `npx` each time.
+Exit `1` prints `decision required: install | npx | none`. **You** ask the question, because you are
+the one with a terminal — this script has none when an agent runs it, so its own prompt never appears.
 
-Either way no version is named, so both take the newest release. Set `NOSTDB_SKILL_ENGINE_CHOICE` to
-`i` or `x` to state the answer without being asked, or `n` to resolve nothing and exit `3`.
+Present the options as a checkbox list and let the person pick one:
+
+```text
+[ ] install   npm install --global nostdb        install it globally
+[ ] npx       npx --yes --package=nostdb nostdb  do not install; run it each time
+[ ] none      resolve nothing, and report what needed an Engine
+```
+
+Then set the answer and run the same command again:
+
+```bash
+NOSTDB_SKILL_ENGINE_CHOICE=npx scripts/resolve-engine.sh nost_language_version 2
+```
+
+The answer is stored for **this session**, so later calls need nothing — do not ask twice, and do not
+pass the variable again. A new session asks again, because somebody who chose not to install to get
+through one afternoon should not still be living with it next week.
+
+Neither route names a version, so both take the newest release. Exit `3` is the `none` answer.
 
 A session is asked once. A new one asks again, because somebody who chose "no Engine" to get through
 one afternoon should not still be living with it next week.
