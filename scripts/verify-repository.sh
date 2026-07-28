@@ -125,17 +125,37 @@ if grep -rn --include='*.md' --include='*.json' --include='*.sh' \
   exit 1
 fi
 
-# The root contract forbids an unpinned fallback for a state-changing non-interactive
-# action. A version resolved at run time is a version nobody reviewed.
+# The root contract forbids an unpinned `latest` **fallback** for a state-changing non-interactive
+# action. This used to be read as forbidding the unpinned npx form outright, and that is no longer
+# what is enforced: the no-install route runs `npx --yes --package=nostdb nostdb`, unpinned, because
+# a Skill naming an Engine version is a version that goes stale in a document nobody re-reads.
 #
-# Scripts and skill definitions only. An earlier version also searched markdown and fired on
-# the document that *states* the prohibition — the same mistake the provider's verifier made
-# about `.nostdb` paths. A document explaining a rule has to be able to write the rule down,
-# and a check that forbids that is one people learn to work around.
+# What still holds is the word "fallback". The unpinned form is reachable only after somebody chose
+# it; with no choice, resolution resolves nothing and exits 1. So what is checked is that the form
+# appears in exactly one place — the resolver that emits it after a decision — and nowhere else,
+# because an unpinned npx sprinkled into another script or a skill definition would be a default
+# again, and nothing would have decided it.
+#
+# `tests/resolve-engine.test.sh` is where "no choice resolves nothing" is actually proven, and the
+# check below requires that case to exist rather than trusting this comment.
+#
+# Scripts and skill definitions only. An earlier version also searched markdown and fired on the
+# document that *states* the prohibition — the same mistake the provider's verifier made about
+# `.nostdb` paths. A document explaining a rule has to be able to write the rule down, and a check
+# that forbids that is one people learn to work around.
 if grep -rn --include='*.json' --include='*.sh' -E 'package=nostdb[^@]' . 2>/dev/null \
     | grep -v '^\./scripts/verify-repository.sh' \
-    | grep -v '^\./tests/resolve-engine.test.sh'; then
-  echo "an unpinned latest fallback is forbidden for a state-changing action" >&2
+    | grep -v '^\./tests/resolve-engine.test.sh' \
+    | grep -v '^\./skills/nostdb/scripts/resolve-engine\.sh'; then
+  echo "the unpinned npx form belongs only in the resolver that emits it after a choice" >&2
+  echo "anywhere else it is a default again, and nothing decided it" >&2
+  exit 1
+fi
+
+# The guarantee the exclusion above rests on: with nothing chosen, nothing resolves.
+if ! grep -q 'a pinned version alone no longer resolves to npx' tests/resolve-engine.test.sh \
+  || ! grep -q 'nothing installed is a refusal, not a guess' tests/resolve-engine.test.sh; then
+  echo "the suite must prove that no choice resolves nothing; that is what permits an unpinned npx" >&2
   exit 1
 fi
 

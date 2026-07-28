@@ -55,10 +55,14 @@ An installed Engine resolves in one process, and a pinned version no longer make
 automatic answer. It used to: passing one meant every action paid npx's fetch and start-up cost
 without anyone choosing it.
 
-With nothing installed, a list appears that the arrow keys move through — install it globally with
-npm, or continue with no Engine — and the answer holds for **that session** rather than for ever. A
-pinned `npx` is offered as a third line only when a version was passed. Set
-`NOSTDB_SKILL_ENGINE_CHOICE` to `i`, `x`, or `n` to state the answer without being asked.
+With nothing installed, a list appears that the arrow keys move through, and the answer holds for
+**that session** rather than for ever:
+
+- **install it** globally with npm;
+- **do not install it**, and run it with `npx` each time.
+
+Either way no version is named, so both take the newest release. Set `NOSTDB_SKILL_ENGINE_CHOICE` to
+`i` or `x` to state the answer without being asked, or `n` to resolve nothing and exit `3`.
 
 A session is asked once. A new one asks again, because somebody who chose "no Engine" to get through
 one afternoon should not still be living with it next week.
@@ -69,6 +73,10 @@ and one that installed software unasked is worse.
 
 On exit `3`, run the action's AI-free reporting only and say what needed an Engine. Do not
 approximate what the Engine would have returned.
+
+**Windows.** NostDB publishes no Windows build, so resolution refuses there and says so rather than
+offering an install that cannot work. The daemon implements only the Unix socket, and nothing in the
+product compiles for Windows yet. WSL reports Linux and is a published target.
 
 The order and the compatibility check are explained in [`RESOLUTION.md`](RESOLUTION.md).
 

@@ -79,11 +79,11 @@ check "a command that does not answer is refused" "$r" "refused"
 # The decision, in each of the three ways it can arrive.
 rm -rf "$work/node_modules" "$state"
 got=$(PATH="/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=x "$resolve" nost_language_version 2 1.4.0)
-check "choosing npx resolves the pinned form" "$got" "npx --yes --package=nostdb@1.4.0 nostdb"
+check "a pin the caller passed is used for npx" "$got" "npx --yes --package=nostdb@1.4.0 nostdb"
 
-PATH="/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=x "$resolve" nost_language_version 2 >/dev/null 2>&1 \
-  && r=resolved || r=refused
-check "choosing npx without a pin is refused, not guessed" "$r" "refused"
+# The no-install route, which is what a Skill uses: no version named, so npx takes the newest.
+got=$(PATH="/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=x "$resolve" nost_language_version 2)
+check "no install runs the newest through npx" "$got" "npx --yes --package=nostdb nostdb"
 
 # Captured rather than tested directly: this file runs under `set -e`, so a bare command exiting 3
 # would end the suite before the check that wants to see the 3.
@@ -129,6 +129,20 @@ check "a remembered decision needs no environment" "$code" "3"
 printf 'x\n' > "$state"
 got=$(PATH="/usr/bin:/bin" "$resolve" nost_language_version 2 1.4.0)
 check "a stored short spelling means the same as the long one" "$got" "npx --yes --package=nostdb@1.4.0 nostdb"
+
+# Windows: there is nothing to offer, because nothing in the product builds there. A fake uname is
+# how that is reachable from a machine that is not Windows, and the alternative is a branch nobody
+# ever runs.
+rm -f "$state"
+mkdir -p "$work/win"
+printf '#!/bin/sh\necho MINGW64_NT-10.0\n' > "$work/win/uname"
+chmod +x "$work/win/uname"
+PATH="$work/win:/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=x "$resolve" nost_language_version 2 \
+  >/dev/null 2>"$work/win.err" && r=resolved || r=refused
+check "Windows is refused rather than offered an install" "$r" "refused"
+check "the refusal says why, not just that it failed" \
+  "$(grep -c 'no Windows build' "$work/win.err")" "1"
+check "the refusal points at WSL" "$(grep -c 'WSL' "$work/win.err")" "1"
 
 # A decision nobody made must not be invented from an unreadable file.
 printf 'maybe\n' > "$state"
@@ -194,7 +208,7 @@ PYTHON
 
   # The marker has to move, or the arrow keys did nothing and the first option was taken by default.
   check "down moved the selection off the first option" \
-    "$(grep -c '\[x\] Run it with a pinned npx' "$work/tui.out")" "1"
+    "$(grep -c '\[x\] Do not install' "$work/tui.out")" "1"
 
   # The same session is not asked twice.
   python3 "$driver" "$resolve" "$state" "" >"$work/tui2.out" 2>/dev/null || true
@@ -237,11 +251,18 @@ else
   echo "skip no nostdb on the path; the real-report check did not run"
 fi
 
-if grep -qE 'package=nostdb[^@]' "$resolve"; then
-  echo "FAIL an unpinned npx fallback is present" >&2
+# The unpinned npx form is present on purpose now, and what is checked is that it is not a *fallback*.
+# Both cases above establish it — nothing installed and no choice resolves nothing, with or without a
+# pinned version passed — so this asserts the property directly rather than banning the string.
+rm -f "$state"
+if PATH="/usr/bin:/bin" "$resolve" nost_language_version 2 >/dev/null 2>&1; then
+  echo "FAIL an unpinned npx is reachable without a choice" >&2
+  failures=$((failures + 1))
+elif PATH="/usr/bin:/bin" "$resolve" nost_language_version 2 1.4.0 >/dev/null 2>&1; then
+  echo "FAIL passing a version alone reaches npx without a choice" >&2
   failures=$((failures + 1))
 else
-  echo "ok   no unpinned fallback exists"
+  echo "ok   npx is a choice and never a fallback"
 fi
 
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }

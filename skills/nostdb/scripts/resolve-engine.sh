@@ -18,7 +18,8 @@
 #
 # With nothing installed and no remembered choice:
 #
-#   - an interactive session is asked once, and the answer holds for the rest of that session;
+#   - an interactive session is asked once — install it, or do not install and run it with npx — and
+#     the answer holds for the rest of that session;
 #   - a non-interactive one exits 1 with the exact commands, unchanged. A script that paused for a
 #     prompt nobody could answer would hang, and one that installed software unasked is worse.
 #
@@ -114,7 +115,26 @@ if found=$(resolve_installed); then
   exit 0
 fi
 
-# Nothing installed answers for this contract. Everything below is about the decision.
+# Nothing installed answers for this contract.
+
+# On Windows there is nothing to offer, and saying so beats an install that cannot work.
+#
+# NostDB publishes four targets, all macOS and Linux. Windows is recorded as intended and not
+# buildable: `nostdb-server` implements only the Unix domain socket while the protocol contract
+# specifies a named pipe for Windows, so nothing in the product compiles there yet.
+#
+# A shell that reports MINGW, MSYS, or CYGWIN is a POSIX layer on Windows, which is the only way this
+# script is running there at all. WSL reports Linux and is a supported platform, so it is not caught.
+case $(uname -s 2>/dev/null || echo unknown) in
+  MINGW* | MSYS* | CYGWIN*)
+    echo "NostDB publishes no Windows build, so there is nothing to install or run here" >&2
+    echo "the daemon implements only the Unix socket, and nothing in the product compiles for Windows yet" >&2
+    echo "run this under WSL, which reports Linux and is a published target" >&2
+    exit 1
+    ;;
+esac
+
+# Everything below is about the decision.
 
 remember() {
   directory=$(dirname "$state")
@@ -128,9 +148,7 @@ remember() {
 install_commands() {
   echo "  npm install --global nostdb${pinned:+@$pinned}" >&2
   echo "  brew install nostdb/tap/nostdb" >&2
-  if [ -n "$pinned" ]; then
-    echo "  npx --yes --package=nostdb@$pinned nostdb   # no permanent install" >&2
-  fi
+  echo "  npx --yes --package=nostdb${pinned:+@$pinned} nostdb   # no permanent install" >&2
 }
 
 # One spelling table for every source of the decision — a prompt, the environment, and the stored
@@ -152,13 +170,8 @@ choice=$(normalize "$choice")
 
 # The options, as `key|label` lines. sh has no arrays, and two parallel lists get out of step the
 # first time somebody edits one of them.
-options="install|Install nostdb${pinned:+@$pinned} globally with npm"
-if [ -n "$pinned" ]; then
-  options="$options
-npx|Run it with a pinned npx each time, installing nothing"
-fi
-options="$options
-none|Continue without an Engine, and report what needs one"
+options="install|Install nostdb${pinned:+@$pinned} globally with npm
+npx|Do not install; run it with npx each time${pinned:+ (pinned to $pinned)}"
 option_count=$(printf '%s\n' "$options" | wc -l | tr -d ' ')
 
 # One keypress, named. Read as hex so a byte that is not text cannot be mistaken for one.
@@ -269,12 +282,14 @@ fi
 
 case $choice in
   npx)
-    if [ -z "$pinned" ]; then
-      echo "the remembered choice is npx, and no pinned version was passed" >&2
-      echo "an unpinned version is a version nobody reviewed, so it is refused" >&2
-      exit 1
-    fi
-    echo "npx --yes --package=nostdb@$pinned nostdb"
+    # Unpinned unless the caller passed a version, which is the no-install route asked for.
+    #
+    # This is the weaker half of the trade and worth being plain about: npx runs on *every* action, so
+    # with no pin the command that ran last week and the command that runs tonight can be different
+    # programs, and the output is the only evidence. What keeps it honest is that it is never a
+    # default — with no choice this resolves nothing — and the compatibility check asks whatever
+    # arrives what contract versions it supports before an action uses it.
+    echo "npx --yes --package=nostdb${pinned:+@$pinned} nostdb"
     exit 0
     ;;
 

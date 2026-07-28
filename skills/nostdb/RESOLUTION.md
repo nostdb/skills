@@ -32,26 +32,41 @@ order:
 | Choice | What happens |
 | --- | --- |
 | install | `npm install --global nostdb` runs, then resolution is **re-probed** rather than assumed |
-| npx | the pinned `npx` form is printed, paying its cost knowingly |
-| none | exit `3`, and the caller reports what it could not do |
+| npx | `npx --yes --package=nostdb nostdb` is printed, installing nothing |
+| none | exit `3`, offered only through the environment, for a caller that wants nothing touched |
 
-Installing asks npm for the newest release unless the caller passed a version. A Skill names the
-contract it needs, not an Engine version: a version baked into a definition goes stale in a document
-nobody re-reads, and the compatibility check below is what decides whether what arrived is usable.
+Neither names a version. A Skill names the contract it needs, not an Engine version: a version baked
+into a definition goes stale in a document nobody re-reads, and the compatibility check below is what
+decides whether what arrived is usable. A caller that passes one is still honored.
 
-The `npx` line is offered only when a version was passed, and it keeps its pin.
+The npx route is the weaker half of the trade, and it is worth being plain about. npx runs on
+**every** action, so with no pin the command that ran last week and the command that runs tonight can
+be different programs, with the output as the only evidence. What keeps it honest is that it is never
+a default, and that whatever arrives is asked what it supports before an action uses it.
 
-## An unpinned install is not the unpinned fallback
+## Unpinned, but never a fallback
 
-The rule below forbids an unpinned `latest` **fallback** for a state-changing non-interactive action.
-A fallback is what happens when nobody chose. With no choice, resolution still resolves nothing and
-exits `1`, and installing happens only because somebody picked it from a list — the opposite of a
-fallback.
+The rule below forbids an unpinned `latest` **fallback** for a state-changing non-interactive action,
+and the load-bearing word is *fallback*: what happens when nobody chose.
 
-The distinction is not a loophole, it is where the risk actually is. `npx` runs on **every** action,
-so an unpinned one means the command that ran last week and the command that runs tonight are
-different programs, with the output as the only evidence. An install runs once and then the
-compatibility check asks the result what it supports before anything uses it.
+With no choice, resolution resolves nothing and exits `1`. That holds whether or not a version was
+passed, and the suite proves both — which is what the repository verifier requires before it permits
+the unpinned form to exist at all. The verifier also requires that form to appear in exactly one
+place, the resolver that emits it after a decision, because an unpinned npx copied into another
+script would be a default again and nothing would have decided it.
+
+## Windows
+
+There is nothing to resolve. NostDB publishes four targets, all macOS and Linux, and Windows is
+recorded as intended and not buildable: `nostdb-server` implements only the Unix domain socket while
+the protocol contract specifies a named pipe there, so nothing in the product compiles for Windows.
+
+A shell reporting `MINGW`, `MSYS`, or `CYGWIN` is a POSIX layer on Windows — the only way these
+scripts run there at all — and resolution refuses with that reason rather than offering an install
+that would download nothing usable. WSL reports Linux and is a published target, so it is not caught.
+
+These scripts are `/bin/sh` and need a POSIX shell regardless. That is the smaller of the two
+constraints: a Windows user who supplies one still has no Engine to run.
 
 ## Asked with a list, once per session
 
