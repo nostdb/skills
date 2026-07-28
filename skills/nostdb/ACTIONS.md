@@ -10,10 +10,10 @@ is also how `--ai=off` means something: it is a filter over this column, not a h
 | Action | AI usage | What it does |
 | --- | --- | --- |
 | `/nostdb help` | none | describes the surface |
-| `/nostdb .` | optional | builds or refreshes the database; enrichment is the optional part |
+| `/nostdb .` | optional | configures the project if it is not, analyzes it, and commits what it found; enrichment is the optional part |
 | `/nostdb . --ai=off` | none | the same build, with enrichment refused rather than skipped |
 | `/nostdb . --ai=full` | required | enrichment is not optional, and the action fails without it |
-| `/nostdb . --nost` | optional | the same build, materializing the canonical `.nost` |
+| `/nostdb . --nost` | optional | the same, materializing the canonical `.nost` as well |
 | `/nostdb .nostdb/root.nost --sync` | none | reconciles the two representations |
 | `/nostdb query --cypher '...'` | none | runs a statement the caller wrote |
 | `/nostdb query "..."` | required | generates openCypher from a question |

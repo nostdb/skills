@@ -98,9 +98,20 @@ The order and the compatibility check are explained in [`RESOLUTION.md`](RESOLUT
 
 ## Step 2: run the action
 
-`scripts/dispatch.sh <action> [arguments...]` prints the `nostdb` command an AI-free action
-invokes. Run exactly what it printed, prefixed by the resolved command. It prints rather than
-runs so a user can be shown what will happen before it does.
+`scripts/dispatch.sh <action> [arguments...]` prints the command an AI-free action invokes. Pass the
+resolved command in `NOSTDB` and run exactly what it printed — it is runnable as it stands:
+
+```bash
+NOSTDB=$(scripts/resolve-engine.sh nost_language_version 2)
+scripts/dispatch.sh build .        # prints the command
+```
+
+The resolved command is **substituted, not prefixed**. Prefixing does not compose: a project-local
+resolution is `./node_modules/.bin/nostdb`, the no-install route is four words
+(`npx --yes --package=nostdb nostdb`), and a mapping that chains two commands contains the command
+twice, so there is nowhere to put a prefix.
+
+It prints rather than runs so a user can be shown what will happen before it does.
 
 Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` unknown action.
 
@@ -109,12 +120,31 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | `help` | `/nostdb help` | none |
 | `build` | `/nostdb . --ai=off` | none |
 | `build-nost` | `/nostdb . --nost` | optional |
+
 | `sync` | `/nostdb .nostdb/root.nost --sync` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
 | `view` | `/nostdb view .` | none |
 | `plugin-add` | `/nostdb plugin add '...'` | none |
 | `query-natural` | `/nostdb query "..."` | required |
 | `enrich` | `/nostdb . --ai=full` | required |
+
+### `/nostdb .` configures, analyzes, and writes
+
+`build` is the whole of `/nostdb .`, not just the analysis step. It emits:
+
+```bash
+[ -f ./.nostdb/settings.json ] || nostdb init . ; nostdb build .
+```
+
+`init` creates `.nostdb/settings.json` and `.nostdb/root.nostdb`; `build` walks the tree, analyzes
+what an analyzer covers, and commits what it found. `build-nost` adds `export --nost`, which writes
+the canonical `.nostdb/root.nost`.
+
+`init` is **guarded** rather than run unconditionally. It refuses an already-configured project and
+exits `2` so that a re-run cannot discard configuration, and `/nostdb .` has to work the second time
+as well as the first. The guard is the settings file `init` itself writes.
+
+A bare `/nostdb` with no path means `.`.
 
 An **AI-free action must call the same Core command the command surface calls**, not an
 equivalent one. Two implementations of one action is two answers to one question, and which

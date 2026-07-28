@@ -11,8 +11,22 @@
 # without an Engine, and it means a caller can show a user exactly what will run before
 # anything does — which is what a natural-language write is separately required to do.
 #
+# # The command is substituted, not prefixed
+#
+# `NOSTDB` holds the command `resolve-engine.sh` printed, and defaults to `nostdb`. What is printed
+# here is therefore runnable as it stands.
+#
+# It used to print the literal word `nostdb` and the definition said to run that "prefixed by the
+# resolved command". That does not compose. A project-local resolution gives
+# `./node_modules/.bin/nostdb`, so prefixing produces `./node_modules/.bin/nostdb nostdb build .`;
+# the no-install route resolves to four words, `npx --yes --package=nostdb nostdb`; and a mapping
+# that chains two commands contains the word twice, so there is no one place to put a prefix.
+#
 # Exit codes: 0 mapped, 1 the action needs a model and has no AI-free mapping, 2 unknown.
 set -eu
+
+# The resolved command, or the bare name when a caller is only inspecting the mapping.
+NOSTDB=${NOSTDB:-nostdb}
 
 [ "$#" -ge 1 ] || { echo "usage: dispatch.sh <action> [arguments...]" >&2; exit 2; }
 action=$1
@@ -24,29 +38,37 @@ shift
 # not exist.
 case "$action" in
   help)
-    echo "nostdb help"
+    echo "$NOSTDB help"
     ;;
   build)
-    # `/nostdb .` with enrichment refused. The build itself is AI-free and always was:
-    # structural analysis of supported source spends no external tokens.
-    echo "nostdb build ${1:-.}"
+    # `/nostdb .` end to end: configure the project if it is not configured, then analyze it and
+    # commit what was found. The build itself is AI-free and always was — structural analysis of
+    # supported source spends no external tokens.
+    #
+    # `init` is guarded rather than run unconditionally, because it refuses an already-configured
+    # project and exits 2 so that a re-run cannot discard configuration. `/nostdb .` has to work the
+    # second time as well as the first, and the guard is the settings file `init` itself writes.
+    target=${1:-.}
+    echo "[ -f $target/.nostdb/settings.json ] || $NOSTDB init $target; $NOSTDB build $target"
     ;;
   build-nost)
-    echo "nostdb build ${1:-.} && nostdb export --nost ${1:-.}"
+    # The same, materializing the canonical `.nost` afterwards.
+    target=${1:-.}
+    echo "[ -f $target/.nostdb/settings.json ] || $NOSTDB init $target; $NOSTDB build $target && $NOSTDB export --nost $target"
     ;;
   sync)
-    echo "nostdb sync ${1:-.}"
+    echo "$NOSTDB sync ${1:-.}"
     ;;
   query-cypher)
     [ "$#" -ge 1 ] || { echo "query-cypher needs a statement" >&2; exit 2; }
-    echo "nostdb query $1"
+    echo "$NOSTDB query $1"
     ;;
   view)
-    echo "nostdb view ${1:-.}"
+    echo "$NOSTDB view ${1:-.}"
     ;;
   plugin-add)
     [ "$#" -ge 1 ] || { echo "plugin-add needs a source" >&2; exit 2; }
-    echo "nostdb plugin add $1"
+    echo "$NOSTDB plugin add $1"
     ;;
   query-natural|enrich)
     # Named so the refusal is specific. Reporting these as unknown would suggest a typo,

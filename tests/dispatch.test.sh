@@ -21,15 +21,51 @@ check() {
   fi
 }
 
-# Every AI-free action maps to a command that starts with `nostdb`. Not an equivalent
-# command, and not a reimplementation: the same one the CLI offers.
+# Every AI-free action invokes the CLI. Not an equivalent command, and not a reimplementation: the
+# same one the CLI offers.
+#
+# Matched on the resolved command appearing rather than on the line starting with `nostdb`, because
+# two mappings now begin with a guard that decides whether the project needs configuring first.
 for action in help build build-nost sync view; do
-  got=$("$dispatch" "$action" 2>/dev/null || echo "REFUSED")
+  got=$(NOSTDB=ENGINE "$dispatch" "$action" 2>/dev/null || echo "REFUSED")
   case "$got" in
-    nostdb\ *) echo "ok   $action invokes the CLI" ;;
+    *ENGINE\ *) echo "ok   $action invokes the CLI" ;;
     *) echo "FAIL $action produced [$got]" >&2; failures=$((failures + 1)) ;;
   esac
 done
+
+# The resolved command is substituted everywhere it is needed, not prefixed once.
+#
+# A prefix cannot work: a project-local resolution is a path, the no-install route is four words, and
+# a chained mapping names the command more than once. `build-nost` names it three times.
+got=$(NOSTDB="npx --yes --package=nostdb nostdb" "$dispatch" build-nost . 2>/dev/null)
+check "every occurrence is substituted, not just the first" \
+  "$(printf '%s\n' "$got" | grep -o 'npx --yes --package=nostdb nostdb' | wc -l | tr -d ' ')" "3"
+
+# `/nostdb .` is the whole of it: configure if needed, then analyze.
+got=$(NOSTDB=ENGINE "$dispatch" build . 2>/dev/null)
+case "$got" in
+  *"ENGINE init ."*) echo "ok   /nostdb . configures the project" ;;
+  *) echo "FAIL build does not init: [$got]" >&2; failures=$((failures + 1)) ;;
+esac
+case "$got" in
+  *"ENGINE build ."*) echo "ok   /nostdb . analyzes the project" ;;
+  *) echo "FAIL build does not build: [$got]" >&2; failures=$((failures + 1)) ;;
+esac
+
+# Guarded, because `init` refuses an already-configured project and exits 2. Without the guard
+# `/nostdb .` would work once and fail every time after.
+case "$got" in
+  *"[ -f ./.nostdb/settings.json ] ||"*) echo "ok   init is guarded so a re-run still works" ;;
+  *) echo "FAIL init is unguarded: [$got]" >&2; failures=$((failures + 1)) ;;
+esac
+
+# `--nost` materializes the canonical document as well.
+got=$(NOSTDB=ENGINE "$dispatch" build-nost . 2>/dev/null)
+case "$got" in
+  *"ENGINE export --nost ."*) echo "ok   --nost materializes the .nost" ;;
+  *) echo "FAIL build-nost does not export: [$got]" >&2; failures=$((failures + 1)) ;;
+esac
 
 got=$("$dispatch" query-cypher 'MATCH (n) RETURN n' 2>/dev/null)
 check "a written statement is passed through unchanged" "$got" "nostdb query MATCH (n) RETURN n"

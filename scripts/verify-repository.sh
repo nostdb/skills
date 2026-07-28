@@ -143,9 +143,18 @@ fi
 # document that *states* the prohibition — the same mistake the provider's verifier made about
 # `.nostdb` paths. A document explaining a rule has to be able to write the rule down, and a check
 # that forbids that is one people learn to work around.
+# Comment lines are skipped. The note above warns that an earlier version fired on the document
+# *stating* the prohibition, and then this check fired on a code comment explaining why the resolved
+# command is substituted rather than prefixed — the same mistake one level over. A comment has to be
+# able to write down the thing it is about.
+#
+# The suites are excluded because a test naming the form is asserting something about it, which is the
+# opposite of shipping it as a default.
 if grep -rn --include='*.json' --include='*.sh' -E 'package=nostdb[^@]' . 2>/dev/null \
+    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
     | grep -v '^\./scripts/verify-repository.sh' \
     | grep -v '^\./tests/resolve-engine.test.sh' \
+    | grep -v '^\./tests/dispatch.test.sh' \
     | grep -v '^\./skills/nostdb/scripts/resolve-engine\.sh'; then
   echo "the unpinned npx form belongs only in the resolver that emits it after a choice" >&2
   echo "anywhere else it is a default again, and nothing decided it" >&2
