@@ -85,4 +85,13 @@ if [ -x tests/budget-check.test.sh ]; then
   echo "budget: every check passed"
 fi
 
+if [ -x tests/nl-gate.test.sh ]; then
+  tests/nl-gate.test.sh >/dev/null || {
+    echo "the natural-language gate tests failed" >&2
+    tests/nl-gate.test.sh >&2
+    exit 1
+  }
+  echo "natural language: every check passed"
+fi
+
 echo "skills verification passed"
