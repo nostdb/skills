@@ -43,12 +43,23 @@ scripts/resolve-engine.sh nost_language_version 2
 scripts/resolve-engine.sh query_subset_version 1 1.4.0   # third argument permits a pinned npx
 ```
 
-It prints the command to use and nothing else. Exit `0` resolved, `1` nothing compatible
-found, `2` used incorrectly.
+It prints the command to use and nothing else. Exit `0` resolved, `1` nothing compatible found
+and no decision, `2` used incorrectly, `3` the caller chose to continue with no Engine.
 
-It installs nothing. If no compatible Engine is found, report the exact commands that would
-install one and stop — a Skill that installed software because it needed some is one nobody
-can safely run in a directory they do not own.
+An installed Engine resolves in one process, and a pinned version no longer makes `npx` the
+automatic answer. It used to: passing one meant every action paid npx's fetch and start-up cost
+without anyone choosing it.
+
+With nothing installed, the choice is asked **once** and remembered in `~/.nostdb/skill-engine`:
+install a pinned version, use a pinned `npx` each time, or continue with no Engine. Set
+`NOSTDB_SKILL_ENGINE_CHOICE` to `i`, `x`, or `n` to state it without being asked.
+
+A non-interactive run is never prompted and never installs anything on its own. It exits `1` with
+the exact commands, because a script that paused for a question nobody could answer would hang,
+and one that installed software unasked is worse.
+
+On exit `3`, run the action's AI-free reporting only and say what needed an Engine. Do not
+approximate what the Engine would have returned.
 
 The order and the compatibility check are explained in [`RESOLUTION.md`](RESOLUTION.md).
 

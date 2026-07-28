@@ -6,16 +6,53 @@ the `nostdb` command, which means the first thing a Skill does is decide *which*
 ## The order
 
 1. **a project-local executable**, including `node_modules/.bin/nostdb`;
-2. **a compatible global executable**, from an npm, Homebrew, or GitHub installation;
-3. **a pinned, no-permanent-install execution**:
-
-```bash
-npx --yes --package=nostdb@<compatible-version> nostdb ...
-```
+2. **a compatible global executable**, from an npm, Homebrew, or GitHub installation.
 
 Project-local first, because a project that pinned a version did so on purpose. A global
 installation that overrode it would mean two people with the same checkout getting different
 answers from the same command, which is the failure the pin exists to prevent.
+
+An installed Engine costs one process: the first candidate that exists is asked, and resolution
+stops there.
+
+## npx is a choice, not a third step
+
+It was a third step, and that was the mistake. Passing a pinned version made
+
+```bash
+npx --yes --package=nostdb@<version> nostdb ...
+```
+
+the automatic answer whenever nothing was installed. Resolution itself was quick; the command it
+handed back was not, so every action paid a fetch and a Node start-up that nobody had agreed to.
+
+With nothing installed there are three answers, and which one applies is a decision rather than an
+order:
+
+| Choice | What happens |
+| --- | --- |
+| install | a pinned global install runs, then resolution is **re-probed** rather than assumed |
+| npx | the pinned `npx` form is printed, paying its cost knowingly |
+| none | exit `3`, and the caller reports what it could not do |
+
+Each needs a pinned version except `none`. Consent to install a reviewed version is not consent to
+whatever is newest, which is the same rule as the section below and the reason it is not relaxed
+just because somebody said yes once.
+
+## The decision is remembered, the resolution is not
+
+The answer is stored in `~/.nostdb/skill-engine`, overridable with `NOSTDB_SKILL_STATE`, as one
+line. `NOSTDB_SKILL_ENGINE_CHOICE` states it without a prompt.
+
+What is stored is the decision a person made, not the command it resolved to. A cached path would be
+a lie the moment the Engine was installed, upgraded, or removed, and re-probing costs one process —
+so the slow thing is cached and the thing that goes stale is not.
+
+An installed Engine is used **without consulting the decision at all**, so a remembered "none"
+cannot strand a caller who has since installed one.
+
+A prompt happens only when both standard input and standard error are terminals. A script is never
+asked and never installs anything on its own: it exits `1` with the exact commands.
 
 ## Never an unpinned fallback
 
