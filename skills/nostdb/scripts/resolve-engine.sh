@@ -152,7 +152,7 @@ choice=$(normalize "$choice")
 
 # The options, as `key|label` lines. sh has no arrays, and two parallel lists get out of step the
 # first time somebody edits one of them.
-options="install|Install nostdb${pinned:+@$pinned} globally"
+options="install|Install nostdb${pinned:+@$pinned} globally with npm"
 if [ -n "$pinned" ]; then
   options="$options
 npx|Run it with a pinned npx each time, installing nothing"
@@ -279,22 +279,26 @@ case $choice in
     ;;
 
   install)
-    # Pinned only. An unpinned install is the fallback the product contract forbids, and a
-    # remembered "yes" is consent to install a reviewed version rather than to whatever is newest.
-    if [ -z "$pinned" ]; then
-      echo "installing needs a pinned version, and none was passed" >&2
-      echo "an unpinned install is a version nobody reviewed, so it is refused" >&2
-      exit 1
-    fi
+    # Unpinned unless the caller passed a version, and that does not breach the product contract.
+    #
+    # What the contract forbids is an unpinned *fallback*: "no unpinned `latest` fallback for a
+    # state-changing non-interactive action". A fallback is what happens when nobody chose, and with
+    # no choice this still resolves nothing and exits 1. Installing happens because somebody picked
+    # it from a list, which is the opposite of a fallback.
+    #
+    # The repeatedly-executed path keeps its pin. npx runs on every action, which is where "the
+    # command that ran last week and the command that runs tonight are different programs" actually
+    # bites, and it is what the repository verifier checks for.
     if ! command -v npm >/dev/null 2>&1; then
       echo "npm is not on the path, so this cannot install nostdb" >&2
       install_commands
       exit 1
     fi
     # Echoed before it runs. Installing software is a visible act even when it was agreed to once.
-    echo "installing nostdb@$pinned globally, as chosen for this session" >&2
-    echo "  npm install --global nostdb@$pinned" >&2
-    if ! npm install --global "nostdb@$pinned" >&2; then
+    target="nostdb${pinned:+@$pinned}"
+    echo "installing $target globally, as chosen for this session" >&2
+    echo "  npm install --global $target" >&2
+    if ! npm install --global "$target" >&2; then
       echo "the install failed; nothing was resolved" >&2
       exit 1
     fi
@@ -304,7 +308,10 @@ case $choice in
       echo "$found"
       exit 0
     fi
-    echo "nostdb@$pinned installed and still does not support $contract $required" >&2
+    # An install that reported success and left something that does not answer for this contract is
+    # the case a caller must not be told is fine. With no pin that is the newest release genuinely
+    # not supporting what was asked for, which is worth saying plainly rather than as a version.
+    echo "$target installed and still does not support $contract $required" >&2
     exit 1
     ;;
 

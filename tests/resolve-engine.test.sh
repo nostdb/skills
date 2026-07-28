@@ -91,11 +91,33 @@ PATH="/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=n "$resolve" nost_language_versi
   && code=0 || code=$?
 check "choosing to continue without an Engine exits 3" "$code" "3"
 
-# Installing needs a pin for the same reason npx does: consent to a reviewed version is not consent
-# to whatever is newest.
-PATH="/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=i "$resolve" nost_language_version 2 >/dev/null 2>&1 \
+# Installing with no pin asks npm for the newest release, and the command it runs is checked without
+# letting anything reach this machine: a fake npm records the arguments and fails, so the shape is
+# proven and nothing is installed. A test that really installed software would be a test nobody could
+# run twice.
+mkdir -p "$work/fakenpm"
+cat > "$work/fakenpm/npm" <<'FAKE'
+#!/bin/sh
+echo "$@" > "$FAKE_NPM_LOG"
+exit 1
+FAKE
+chmod +x "$work/fakenpm/npm"
+
+FAKE_NPM_LOG="$work/npm.args" \
+  PATH="$work/fakenpm:/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=i \
+  "$resolve" nost_language_version 2 >/dev/null 2>&1 \
   && r=resolved || r=refused
-check "installing without a pin is refused" "$r" "refused"
+check "an install that fails resolves nothing" "$r" "refused"
+check "installing with no pin asks for the newest release" \
+  "$(cat "$work/npm.args" 2>/dev/null)" "install --global nostdb"
+
+# A caller that does pass one is still honored: the skill not naming a version is not the same as
+# refusing one it was handed.
+FAKE_NPM_LOG="$work/npm.pinned" \
+  PATH="$work/fakenpm:/usr/bin:/bin" NOSTDB_SKILL_ENGINE_CHOICE=i \
+  "$resolve" nost_language_version 2 1.4.0 >/dev/null 2>&1 || true
+check "a pin the caller passed is used for the install" \
+  "$(cat "$work/npm.pinned" 2>/dev/null)" "install --global nostdb@1.4.0"
 
 # A remembered decision is honored with nothing in the environment, which is the whole point of
 # remembering it.

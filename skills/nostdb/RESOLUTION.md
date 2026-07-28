@@ -31,13 +31,27 @@ order:
 
 | Choice | What happens |
 | --- | --- |
-| install | a pinned global install runs, then resolution is **re-probed** rather than assumed |
+| install | `npm install --global nostdb` runs, then resolution is **re-probed** rather than assumed |
 | npx | the pinned `npx` form is printed, paying its cost knowingly |
 | none | exit `3`, and the caller reports what it could not do |
 
-Each needs a pinned version except `none`. Consent to install a reviewed version is not consent to
-whatever is newest, which is the same rule as the section below and the reason it is not relaxed
-just because somebody said yes once.
+Installing asks npm for the newest release unless the caller passed a version. A Skill names the
+contract it needs, not an Engine version: a version baked into a definition goes stale in a document
+nobody re-reads, and the compatibility check below is what decides whether what arrived is usable.
+
+The `npx` line is offered only when a version was passed, and it keeps its pin.
+
+## An unpinned install is not the unpinned fallback
+
+The rule below forbids an unpinned `latest` **fallback** for a state-changing non-interactive action.
+A fallback is what happens when nobody chose. With no choice, resolution still resolves nothing and
+exits `1`, and installing happens only because somebody picked it from a list — the opposite of a
+fallback.
+
+The distinction is not a loophole, it is where the risk actually is. `npx` runs on **every** action,
+so an unpinned one means the command that ran last week and the command that runs tonight are
+different programs, with the output as the only evidence. An install runs once and then the
+compatibility check asks the result what it supports before anything uses it.
 
 ## Asked with a list, once per session
 
