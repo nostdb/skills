@@ -67,4 +67,13 @@ if [ -x tests/resolve-engine.test.sh ]; then
   echo "resolution: every check passed"
 fi
 
+if [ -x tests/dispatch.test.sh ]; then
+  tests/dispatch.test.sh >/dev/null || {
+    echo "the dispatch tests failed" >&2
+    tests/dispatch.test.sh >&2
+    exit 1
+  }
+  echo "dispatch: every check passed"
+fi
+
 echo "skills verification passed"
