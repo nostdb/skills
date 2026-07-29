@@ -281,5 +281,39 @@ else
   echo "ok   npx is a choice and never a fallback"
 fi
 
+# The definition must not draw a control its reader cannot operate.
+#
+# It used to say "present the options as a checkbox list", with `[ ]` boxes. An agent followed that
+# exactly and rendered three empty boxes into a chat, where nobody could tick one — which is worse than
+# plain prose, because it looks like it should work and then does not.
+#
+# Scoped to SKILL.md deliberately. The same markers in the resolver are a *real* control: the arrow keys
+# move the `[x]` when the script owns a terminal, which is the case this rule is not about. What is
+# forbidden is imitating a control, not offering a choice.
+definition="$here/../skills/nostdb/SKILL.md"
+if grep -nE '^[[:space:]]*\[[ x*]\]' "$definition"; then
+  echo "FAIL SKILL.md draws a checkbox, which its reader cannot tick" >&2
+  failures=$((failures + 1))
+else
+  echo "ok   the definition asks rather than drawing a control"
+fi
+
+# And it names every answer the resolver accepts, or an agent would ask a question whose answers do not
+# work. Both sides are read, so adding a fourth answer to either one fails here.
+for answer in install npx none; do
+  if grep -q -- "\*\*$answer\*\*" "$definition"; then
+    echo "ok   the definition names the $answer answer"
+  else
+    echo "FAIL the definition does not name the $answer answer" >&2
+    failures=$((failures + 1))
+  fi
+done
+if grep -q 'decision required: install | npx | none' "$resolve"; then
+  echo "ok   and they are the three the resolver accepts"
+else
+  echo "FAIL the resolver's answers and the definition's have diverged" >&2
+  failures=$((failures + 1))
+fi
+
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }
 echo "resolution: every check passed"

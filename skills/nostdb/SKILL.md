@@ -84,15 +84,19 @@ without anyone choosing it.
 ### With nothing installed, ask once for the session
 
 Exit `1` prints `decision required: install | npx | none`. **You** ask the question, because you are
-the one with a terminal — this script has none when an agent runs it, so its own prompt never appears.
+the one who can be answered — this script has no terminal when an agent runs it, so its own prompt
+never appears.
 
-Present the options as a checkbox list and let the person pick one:
+**Ask it the way you ask anything else, and take a typed answer.** Do not draw a checkbox list, a
+menu, or anything else that looks like a control: a reader cannot click text, and a list of `[ ]`
+boxes tells somebody to do something they have no way of doing. If you have a native way to offer a
+choice, use that. Otherwise ask in one sentence and name the three answers.
 
-```text
-[ ] install   npm install --global nostdb        install it globally
-[ ] npx       npx --yes --package=nostdb nostdb  do not install; run it each time
-[ ] none      resolve nothing, and report what needed an Engine
-```
+The three answers, and what each one means:
+
+- **install** — `npm install --global nostdb`, and it stays installed
+- **npx** — `npx --yes --package=nostdb nostdb`, installing nothing and fetching each run
+- **none** — resolve nothing, and report what needed an Engine
 
 Then set the answer and run the same command again:
 
