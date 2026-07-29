@@ -281,27 +281,52 @@ else
   echo "ok   npx is a choice and never a fallback"
 fi
 
-# The definition must not draw a control its reader cannot operate.
+# The definition must offer a list, and must not imitate a control.
 #
-# It used to say "present the options as a checkbox list", with `[ ]` boxes. An agent followed that
-# exactly and rendered three empty boxes into a chat, where nobody could tick one — which is worse than
-# plain prose, because it looks like it should work and then does not.
+# Both halves were learned from a report. First it said "present the options as a checkbox list", and an
+# agent rendered three empty boxes into a chat where nothing could tick them. Then it said to ask in one
+# sentence, and that read worse than the broken widget did — three words buried in prose is not
+# something somebody scans.
 #
-# Scoped to SKILL.md deliberately. The same markers in the resolver are a *real* control: the arrow keys
-# move the `[x]` when the script owns a terminal, which is the case this rule is not about. What is
-# forbidden is imitating a control, not offering a choice.
+# So a list is required, a native picker is preferred where one exists, and empty brackets are refused.
+# The distinction is whether a reader can act on what they are shown: a number they can type is a list,
+# and a bracket they cannot click is a broken widget.
+#
+# Scoped to SKILL.md. The same markers in the resolver are a *real* control — the arrow keys move the
+# `[x]` when the script owns a terminal — and forbidding the string everywhere would break the working
+# one while fixing the imitation.
 definition="$here/../skills/nostdb/SKILL.md"
 if grep -nE '^[[:space:]]*\[[ x*]\]' "$definition"; then
   echo "FAIL SKILL.md draws a checkbox, which its reader cannot tick" >&2
   failures=$((failures + 1))
 else
-  echo "ok   the definition asks rather than drawing a control"
+  echo "ok   the definition does not imitate a control"
+fi
+
+# A list, with something a reader can type.
+if grep -qE '^[[:space:]]*1\)[[:space:]]+install' "$definition"; then
+  echo "ok   and it offers the answers as a list"
+else
+  echo "FAIL the definition does not list the answers" >&2
+  failures=$((failures + 1))
+fi
+
+# And it points at the one place a real checkbox can come from, or the `[x]` a reader wanted is
+# unreachable however the list is printed.
+if grep -qi 'native single-select' "$definition"; then
+  echo "ok   and prefers a native picker, which is where a real [x] comes from"
+else
+  echo "FAIL the definition does not prefer a native picker" >&2
+  failures=$((failures + 1))
 fi
 
 # And it names every answer the resolver accepts, or an agent would ask a question whose answers do not
 # work. Both sides are read, so adding a fourth answer to either one fails here.
+# Matched as a listed answer rather than as bold text. It used to require `**install**`, which broke the
+# moment the bullet list became a numbered one — a check on how a thing is formatted rather than on
+# whether it is there.
 for answer in install npx none; do
-  if grep -q -- "\*\*$answer\*\*" "$definition"; then
+  if grep -qE "^[[:space:]]*[0-9]\)[[:space:]]+$answer\b" "$definition"; then
     echo "ok   the definition names the $answer answer"
   else
     echo "FAIL the definition does not name the $answer answer" >&2

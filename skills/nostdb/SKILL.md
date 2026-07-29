@@ -87,16 +87,27 @@ Exit `1` prints `decision required: install | npx | none`. **You** ask the quest
 the one who can be answered — this script has no terminal when an agent runs it, so its own prompt
 never appears.
 
-**Ask it the way you ask anything else, and take a typed answer.** Do not draw a checkbox list, a
-menu, or anything else that looks like a control: a reader cannot click text, and a list of `[ ]`
-boxes tells somebody to do something they have no way of doing. If you have a native way to offer a
-choice, use that. Otherwise ask in one sentence and name the three answers.
+**Ask it the way your own surface asks anything else, and show the options as a list.** A list is what
+somebody reads; a sentence with three words buried in it is not.
 
-The three answers, and what each one means:
+**Use a native single-select if you have one** — a question with options a person actually picks. That
+is where a real `[x]` comes from: your harness draws the control and hands back the answer, so the box
+somebody ticks is a box that does something. Prefer this whenever it exists.
 
-- **install** — `npm install --global nostdb`, and it stays installed
-- **npx** — `npx --yes --package=nostdb nostdb`, installing nothing and fetching each run
-- **none** — resolve nothing, and report what needed an Engine
+With no native picker, print the list and say what to reply with:
+
+```text
+1) install   npm install --global nostdb         stays installed
+2) npx       npx --yes --package=nostdb nostdb   installs nothing, fetches each run
+3) none      resolve nothing, and report what needed an Engine
+```
+
+Reply with the word or the number.
+
+What not to do is **imitate** a control — writing empty brackets into a message where nothing can tick
+them. A list of boxes that cannot be ticked looks like it works and then does not, which is worse than
+either a real picker or a plain list. Numbers a reader can type are a list; brackets a reader cannot
+click are a broken widget.
 
 Then set the answer and run the same command again:
 
