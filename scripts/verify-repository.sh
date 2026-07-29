@@ -200,6 +200,15 @@ if [ -x tests/dispatch.test.sh ]; then
   echo "dispatch: every check passed"
 fi
 
+if [ -x tests/presets.test.sh ]; then
+  tests/presets.test.sh >/dev/null || {
+    echo "the preset tests failed" >&2
+    tests/presets.test.sh >&2
+    exit 1
+  }
+  echo "presets: every check passed"
+fi
+
 if [ -x tests/budget-check.test.sh ]; then
   tests/budget-check.test.sh >/dev/null || {
     echo "the budget check tests failed" >&2

@@ -1,0 +1,78 @@
+// The JPA vocabulary: what a persistence mapping is called once it is in the graph.
+//
+// This file is a `.nost` document and nothing else, so the Engine validates it — `nostdb check` reads it
+// the same way it reads any other. The Skill holds no validator of its own, and a malformed preset fails
+// before it is ever offered to a model.
+//
+// # What it is for
+//
+// `nostdb-spec/docs/NOST_LANGUAGE.md` accepts a consequence rather than solving it: a record may name a
+// schema that was never declared, so a misspelled label is indistinguishable from an intentional bare one.
+// A preset fixes the vocabulary on the producing side, which is the only side where the two can be told
+// apart. Without it a model proposing `Entity` today and `JpaEntity` tomorrow produces two unvalidated
+// labels and no error.
+//
+// # What it is not
+//
+// It is not an analyzer. Nothing here reads `@Entity`; these are the names a *proposal* must use once
+// something else has read it, and the Engine is what checks the proposal against them.
+//
+// `Schema` is deliberately absent as a name. NostDB already has schemas — this file is made of them — and a
+// label called `Schema` would make `MATCH (s:Schema)` mean two things at once.
+
+@nost 2
+
+// A persisted type. `@Entity` in the source; the class is the record, and this says what it maps to.
+//
+// `table` is optional because `@Entity` alone is legal and the table name then follows from the class name
+// by the provider's naming strategy — which is configuration this graph has not read. Absent says "not
+// written down" and is not the same claim as a guess at what the provider would pick.
+schema Entity {
+  name: string,
+  table?: string,
+  schema_name?: string
+}
+
+// One persisted field of an entity. `@Column`, or a field with none, which is still persisted.
+//
+// `column` is optional for the reason `table` is. `generated` records whether the source says the value is
+// produced by the database, which is a fact about the mapping rather than about the column.
+schema Column {
+  name: string,
+  column?: string,
+  nullable?: boolean,
+  identifier?: boolean,
+  generated?: boolean
+}
+
+// A repository interface, and the entity it is declared over.
+//
+// Separate from `Entity` because it is a different declaration in a different file, and a project may have
+// an entity with no repository or two repositories over one entity.
+schema Repository {
+  name: string,
+  entity?: string
+}
+
+// An entity to one of its columns.
+schema HAS_COLUMN(Entity -> Column) {
+}
+
+// An association between two entities, with the cardinality the source declared.
+//
+// One relation with a `cardinality` property rather than four relation types. `MANY_TO_ONE` and
+// `ONE_TO_MANY` are the same fact read from either end, and a query asking "what does this entity
+// reference" would otherwise have to name every direction to avoid missing one.
+//
+// `mapped_by` and `join_column` are recorded when written, because they are what makes the association
+// resolvable to a reader — and omitted when not, rather than defaulted to a name this graph did not read.
+schema REFERENCES_ENTITY(Entity -> Entity) {
+  cardinality: string,
+  field: string,
+  mapped_by?: string,
+  join_column?: string
+}
+
+// A repository to the entity it is declared over.
+schema SERVES(Repository -> Entity) {
+}

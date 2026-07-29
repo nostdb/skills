@@ -30,7 +30,7 @@ check() {
 # `help` is deliberately absent: it runs nothing, because `/nostdb help` describes the Skill and the
 # Skill is what knows. An action is not required to be one CLI command or to be named after one — what
 # is required is that whatever work happens is the CLI's.
-for action in build build-nost sync view; do
+for action in build build-nost sync summary view; do
   got=$(NOSTDB=ENGINE "$dispatch" "$action" 2>/dev/null || echo "REFUSED")
   case "$got" in
     *ENGINE\ *) echo "ok   $action invokes the CLI" ;;
@@ -92,13 +92,29 @@ case "$surface" in
   *"/nostdb ."*) echo "ok   help.sh prints the surface with no Engine" ;;
   *) echo "FAIL help.sh printed [$surface]" >&2; failures=$((failures + 1)) ;;
 esac
-for expected in "/nostdb query --cypher" "/nostdb view ." "/nostdb plugin add" "/nostdb help"; do
+for expected in "/nostdb query --cypher" "/nostdb view ." "/nostdb plugin add" "/nostdb summary" "/nostdb help"; do
   case "$surface" in
     *"$expected"*) : ;;
     *) echo "FAIL the surface omits $expected" >&2; failures=$((failures + 1)) ;;
   esac
 done
 echo "ok   and it names every action a caller can ask for"
+
+# And it stops at the surface.
+#
+# Nothing checked where the extraction *ended*, only that it contained the right lines, so a
+# terminator of `^## [^S]` went unnoticed: it cannot stop at `## Step 1`, the heading that follows
+# Surface, and `help` printed Engine resolution and the dispatch table as well. Somebody asking what
+# the Skill does got the instructions written for the agent.
+for internal in "## Step 1" "## Step 2" "resolve-engine.sh" "## Natural language"; do
+  case "$surface" in
+    *"$internal"*)
+      echo "FAIL the surface runs past its section into [$internal]" >&2
+      failures=$((failures + 1)) ;;
+    *) : ;;
+  esac
+done
+echo "ok   and stops there, rather than spilling into the agent's instructions"
 
 # Extracted rather than copied, proven by editing the source and seeing the edit come out. A grep for a
 # string this test invented would pass just as well against a hard-coded copy, which is what this has to
@@ -112,6 +128,94 @@ mv "$skill/SKILL.md.orig" "$skill/SKILL.md"
 case "$moved" in
   *"$probe"*) echo "ok   the text is read from SKILL.md, not copied into the script" ;;
   *) echo "FAIL help.sh did not follow an edit to SKILL.md" >&2; failures=$((failures + 1)) ;;
+esac
+
+# `/nostdb summary` asks the Engine every number it reports.
+#
+# Pinned command by command, because the failure this guards against is not a mapping that drifts —
+# it is a Skill that stops asking. Counting nodes in a shell is a few lines that would pass every
+# other check in this file while being a second implementation of the question.
+got=$(NOSTDB=ENGINE "$dispatch" summary . 2>/dev/null)
+for expected in \
+  "ENGINE query 'CALL nostdb.build_status()' --project ." \
+  "ENGINE query 'MATCH (n) RETURN nostdb.link_alias(n) AS alias, count(n) AS total ORDER BY total DESC' --project ." \
+  "ENGINE query 'MATCH (n) RETURN labels(n) AS labels, count(n) AS total ORDER BY total DESC, labels' --project ." \
+  "ENGINE query 'MATCH ()-[r]->() RETURN type(r) AS type, count(r) AS total ORDER BY total DESC, type' --project ." \
+  "ENGINE check ./.nostdb/root.nostdb"
+do
+  case "$got" in
+    *"$expected"*) echo "ok   summary asks the Engine: ${expected#ENGINE }" ;;
+    *) echo "FAIL summary omits [$expected]: [$got]" >&2; failures=$((failures + 1)) ;;
+  esac
+done
+
+# The totals and the kinds are separate questions, and the declared count is a third.
+#
+# A build declares a schema for every label its analyzers can write, so fourteen declared schemas
+# over three kinds of node is the normal state. An action reporting the declared count as the kinds
+# present would describe a graph nobody has, and every check above would still pass — so the reads
+# that keep them apart are required to all be there. Two aggregating queries, and `check`.
+check "the kinds present are counted from the graph, not inferred from the schema count" \
+  "$(printf '%s\n' "$got" | grep -o 'count(' | wc -l | tr -d ' ')" "3"
+case "$got" in
+  *check*) echo "ok   and the declared schema count comes from the container" ;;
+  *) echo "FAIL summary never asks for the declared schemas" >&2; failures=$((failures + 1)) ;;
+esac
+
+# A linked project's report has to reconcile. `build_status` answers from the root and a read sees
+# the union, so one link makes the totals say 5 nodes while the breakdowns account for 11 — and
+# without the per-source count there is nothing in the output that explains the gap. Dropping this
+# read leaves a report that contradicts itself and every other check here still passing.
+case "$got" in
+  *"nostdb.link_alias(n) AS alias"*)
+    echo "ok   and the report says which records came from where" ;;
+  *) echo "FAIL summary cannot reconcile root totals with union breakdowns: [$got]" >&2
+     failures=$((failures + 1)) ;;
+esac
+
+# Grouped, never filtered. The subset has no `IS NULL`, so a `WHERE` scoping to the root is a
+# semantic error the Engine refuses rather than a narrower query.
+case "$got" in
+  *"IS NULL"*)
+    echo "FAIL summary filters on IS NULL, which the subset refuses: [$got]" >&2
+    failures=$((failures + 1)) ;;
+  *) echo "ok   and separates the root by grouping, not by a filter the subset lacks" ;;
+esac
+
+# `check` runs last, because it is the one call that exits non-zero on a sound report: 3 when the
+# container holds an error diagnostic. Earlier in an `&&` chain it would suppress the counts that
+# were actually asked for.
+case "$got" in
+  *"check ./.nostdb/root.nostdb") echo "ok   the call that can fail runs last" ;;
+  *) echo "FAIL check is not last, so a failure would hide the summary: [$got]" >&2
+     failures=$((failures + 1)) ;;
+esac
+
+# Nothing in a summary writes. `export` would materialize `.nost` as a side effect of a read, and
+# `build` would commit a generation; a report that changed the thing it reported on is not a report.
+case "$got" in
+  *export*|*"build "*|*init*|*sync*|*apply*)
+    echo "FAIL summary emits a writing command: [$got]" >&2; failures=$((failures + 1)) ;;
+  *) echo "ok   summary writes nothing" ;;
+esac
+
+# Both spellings of one database. Somebody asks about a `.nostdb` folder as readily as a project,
+# usually with the trailing slash a shell completed, and `check` takes the container file — so the
+# folder must not become `.nostdb/.nostdb/root.nostdb`.
+for named in 'proj/.nostdb' 'proj/.nostdb/' '.nostdb' '.nostdb/'; do
+  got=$(NOSTDB=ENGINE "$dispatch" summary "$named" 2>/dev/null)
+  want="ENGINE check ${named%/}/root.nostdb"
+  case "$got" in
+    *"$want"*) echo "ok   $named names the container directly" ;;
+    *) echo "FAIL $named resolved wrong; wanted [$want] in [$got]" >&2
+       failures=$((failures + 1)) ;;
+  esac
+done
+got=$(NOSTDB=ENGINE "$dispatch" summary proj 2>/dev/null)
+case "$got" in
+  *"ENGINE check proj/.nostdb/root.nostdb"*) echo "ok   and a project gets its .nostdb appended" ;;
+  *) echo "FAIL a project path did not resolve to its container: [$got]" >&2
+     failures=$((failures + 1)) ;;
 esac
 
 got=$("$dispatch" query-cypher 'MATCH (n) RETURN n' 2>/dev/null)
@@ -213,7 +317,7 @@ if command -v nostdb >/dev/null 2>&1; then
   work=$(mktemp -d)
   # Configured first, so the guard is exercised in the state a second run is in.
   nostdb init "$work" >/dev/null 2>&1 || true
-  for action in build build-nost sync view; do
+  for action in build build-nost sync summary view; do
     emitted=$(NOSTDB=nostdb "$dispatch" "$action" "$work" 2>/dev/null)
     out=$(sh -c "$emitted" 2>&1 || true)
     case "$out" in
@@ -268,6 +372,14 @@ esac
 #
 # Lines beginning with `nostdb` only, so the Skill's own `/nostdb .` surface is not mistaken for a
 # CLI invocation. It is the Skill's spelling and takes a bare path by design.
+#
+# The rule reaches only the commands that have the option. `--project` exists for `build`, `plan`,
+# `query`, `link`, and `apply`; `check`, `init`, `convert`, `export`, `catalog`, `sync`, and `view`
+# take a positional target and nothing else. Demanding the option of those would document a flag the
+# parser refuses — the same failure this rule exists to prevent, with the sign flipped — and it fired
+# exactly that way on `summary`, which documents `nostdb check ./.nostdb/root.nostdb` because that is
+# the only spelling `check` has.
+positional_only='init check convert export catalog sync view'
 documented=0
 for document in "$skill"/*.md; do
   while IFS= read -r text; do
@@ -275,6 +387,10 @@ for document in "$skill"/*.md; do
     documented=$((documented + 1))
     case " $text " in
       *" --project "*) continue ;;
+    esac
+    # The subcommand, which is what decides whether the option was available to be named.
+    case " $positional_only " in
+      *" $(printf '%s\n' "$text" | awk '{print $2}') "*) continue ;;
     esac
     case " $text " in
       *" . "* | *" ."*)
@@ -285,6 +401,18 @@ for document in "$skill"/*.md; do
 $(grep -hE '^[[:space:]]*nostdb ' "$document" || true)
 EOF
 done
+
+# And the exemption list is checked against the Engine rather than trusted, because a command that
+# gained `--project` would silently leave this rule unenforced for it.
+if command -v nostdb >/dev/null 2>&1; then
+  for command in $positional_only; do
+    if nostdb help "$command" 2>/dev/null | grep -q -- '--project'; then
+      echo "FAIL $command is exempted as positional-only but takes --project" >&2
+      failures=$((failures + 1))
+    fi
+  done
+  echo "ok   every exempted command really is positional-only"
+fi
 check "a documented invocation was found to check" "$([ "$documented" -gt 0 ] && echo yes)" "yes"
 [ "$failures" -eq 0 ] && echo "ok   every documented invocation names its project with --project"
 

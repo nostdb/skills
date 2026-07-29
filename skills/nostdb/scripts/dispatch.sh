@@ -51,6 +51,23 @@ configure() {
   printf '[ -f %s/.nostdb/settings.json ] || %s init %s; ' "$1" "$NOSTDB" "$1"
 }
 
+# The container file a path names, whichever of the two ways it was named.
+#
+# Somebody asking about a database points either at the project or at the `.nostdb` folder itself,
+# usually with the trailing slash a shell completed. `check` takes the container file, so both
+# spellings have to arrive at one path.
+#
+# Decided from the text rather than by probing for what exists. State changes between printing a
+# command and running it, and a path that depended on what was there at print time would emit a
+# different command for the same argument depending on when it was asked.
+container() {
+  named=${1%/}
+  case "$named" in
+    .nostdb | */.nostdb) printf '%s/root.nostdb' "$named" ;;
+    *) printf '%s/.nostdb/root.nostdb' "$named" ;;
+  esac
+}
+
 [ "$#" -ge 1 ] || { echo "usage: dispatch.sh <action> [arguments...]" >&2; exit 2; }
 action=$1
 shift
@@ -95,6 +112,30 @@ case "$action" in
   sync)
     echo "$NOSTDB sync ${1:-.}"
     ;;
+  summary)
+    # What a database holds, in five reads that write nothing. Every number is the Engine's: counting
+    # the graph here would be a short awk script, and a second implementation of "how many nodes" is
+    # a second answer to one question.
+    #
+    # The per-source count earns its place by reconciling the other two. `build_status` answers from
+    # the root, a `MATCH` reads the union of the root and its links, so one link reports 5 nodes and
+    # then breaks down 11 — and prose in this file cannot help whoever reads the output. Grouping,
+    # not filtering: the subset has no `IS NULL`, so a `WHERE` scoping to the root is refused.
+    #
+    # `check` is last because it is the one call that fails on a sound report, exiting 3 on an error
+    # diagnostic. Last means the counts are already out, so the failure answers "is this database
+    # sound" instead of suppressing the summary that was asked for.
+    #
+    # Statements are quoted, so what is printed runs as one line. What the two pairs of numbers mean,
+    # and why they differ, is in SKILL.md, where whoever renders the report reads.
+    target=${1:-.}
+    query="$NOSTDB query"
+    totals='CALL nostdb.build_status()'
+    by_source='MATCH (n) RETURN nostdb.link_alias(n) AS alias, count(n) AS total ORDER BY total DESC'
+    of_nodes='MATCH (n) RETURN labels(n) AS labels, count(n) AS total ORDER BY total DESC, labels'
+    of_edges='MATCH ()-[r]->() RETURN type(r) AS type, count(r) AS total ORDER BY total DESC, type'
+    echo "$query '$totals' --project $target && $query '$by_source' --project $target && $query '$of_nodes' --project $target && $query '$of_edges' --project $target && $NOSTDB check $(container "$target")"
+    ;;
   query-cypher)
     [ "$#" -ge 1 ] || { echo "query-cypher needs a statement" >&2; exit 2; }
     echo "$NOSTDB query $1"
@@ -106,9 +147,25 @@ case "$action" in
     [ "$#" -ge 1 ] || { echo "plugin-add needs a source" >&2; exit 2; }
     echo "$NOSTDB plugin add $1"
     ;;
-  query-natural|enrich)
+  preset-check)
+    # The Engine validates a preset, because a preset is a `.nost` document and the Engine is what reads
+    # one. The Skill holds no validator: a second reader of the language is exactly what this boundary
+    # forbids, and a malformed preset must fail before it is ever offered to a model.
+    #
+    # The name is passed through unchecked, the way a written statement is. Whether the file is there is the
+    # Engine's answer to give, and asking the filesystem here would make the printed command depend on when
+    # it was printed.
+    [ "$#" -ge 1 ] || { echo "preset-check needs a preset name" >&2; exit 2; }
+    echo "$NOSTDB check presets/$1.nost"
+    ;;
+  preset-apply|query-natural|enrich)
     # Named so the refusal is specific. Reporting these as unknown would suggest a typo,
     # when the truth is that they exist and need something this path cannot supply.
+    #
+    # `preset-apply` is here rather than beside `preset-check` for the reason that matters most about a
+    # preset: a preset is a vocabulary, and **deriving a fact from one without a model would make this a
+    # second analyzer** — reading annotations the Engine's own analyzers do not read. The interpretation is
+    # the model's and the validation is the Engine's.
     echo "$action requires a model and has no AI-free mapping" >&2
     exit 1
     ;;

@@ -46,9 +46,12 @@ database in order to read a help message is the wrong order of operations.
 /nostdb . --ai=off                 the same, with enrichment refused rather than skipped
 /nostdb . --ai=full                enrichment required; fails without a model
 /nostdb .nostdb/root.nost --sync   reconcile .nost and .nostdb
+/nostdb summary .                  report how much is in the database, and of what kinds
 /nostdb query --cypher '...'       run a statement you wrote
 /nostdb query "..."                ask in English; the generated Cypher is shown
 /nostdb view .                     render the graph through a viewer plugin
+/nostdb preset                     list the schema presets this Skill ships
+/nostdb preset jpa                 propose records for a preset, and apply them
 /nostdb plugin add '...'           install a plugin from a pinned GitHub source
 /nostdb help                       this
 ```
@@ -170,13 +173,15 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | --- | --- | --- |
 | `build` | `/nostdb .` | optional |
 | `build-nost` | `/nostdb . --nost` | optional |
-
 | `sync` | `/nostdb .nostdb/root.nost --sync` | none |
+| `summary` | `/nostdb summary .` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
 | `view` | `/nostdb view .` | none |
 | `plugin-add` | `/nostdb plugin add '...'` | none |
+| `preset-check` | `/nostdb preset` | none |
 | `query-natural` | `/nostdb query "..."` | required |
 | `enrich` | `/nostdb . --ai=full` | required |
+| `preset-apply` | `/nostdb preset jpa` | required |
 
 ### `/nostdb .` configures, analyzes, and writes
 
@@ -196,9 +201,46 @@ as well as the first. The guard is the settings file `init` itself writes.
 
 A bare `/nostdb` with no path means `.`.
 
-An action is **not** required to be one CLI command, or to be named after one. `build` runs two
-commands and `help` runs none — the Skill's surface is its own, and shaping it around what somebody
-would ask for beats mirroring a command table.
+### `/nostdb summary .` reports what a database holds
+
+`summary` is five reads, and it writes nothing. It emits:
+
+```bash
+nostdb query 'CALL nostdb.build_status()' --project .
+nostdb query 'MATCH (n) RETURN nostdb.link_alias(n) AS alias, count(n) AS total ORDER BY total DESC' --project .
+nostdb query 'MATCH (n) RETURN labels(n) AS labels, count(n) AS total ORDER BY total DESC, labels' --project .
+nostdb query 'MATCH ()-[r]->() RETURN type(r) AS type, count(r) AS total ORDER BY total DESC, type' --project .
+nostdb check ./.nostdb/root.nostdb
+```
+
+Present them in that order as one report: the generation and the totals, where those records came
+from, node labels with their counts, edge types with theirs, then whether the container is sound.
+Either spelling of the path names one database — `/nostdb summary .nostdb/` and `/nostdb summary .`
+agree, because a query resolves the nearest configured project at or above what it is given. A bare
+`/nostdb summary` means `.`.
+
+Two pairs of numbers in that report are **different questions**, and reporting either as the other
+describes a database nobody has:
+
+- **the totals are the root's; the breakdowns cover the links too.** `build_status` answers from the
+  root alone and a read sees the union, so one link is enough to report 5 nodes and then break down
+  11. The per-source count is what reconciles them: a blank alias is the root, each other row is a
+  link's contribution;
+- **schemas declared are not kinds present.** A build declares a schema for every label its
+  analyzers can write, so a project holding three kinds of node still declares fourteen. `check`
+  reports the declared count; the breakdowns count what actually carries each kind.
+
+The declared schema **names** have no read-only Engine command at all. Report the count, and say
+that is what the Engine offers — the names exist only in the canonical `.nost`, which `export`
+writes and only a parser would read, and a Skill does neither.
+
+`check` runs last because it is the one call that can fail on a report that is otherwise fine: it
+exits `3` when the container holds an error diagnostic. Last means the counts have already printed,
+so the failure reads as the answer to "is this database sound" instead of hiding the summary.
+
+An action is **not** required to be one CLI command, or to be named after one. `build` runs two,
+`summary` runs five, and `help` runs none — the Skill's surface is its own, and shaping it around what
+somebody would ask for beats mirroring a command table.
 
 What every AI-free action must do is **have the CLI do the work**. The Skill composes commands and
 never computes an answer itself: two implementations of one question is two answers, and which one a
@@ -209,6 +251,50 @@ approximation and report success: a caller who asked a question in English and g
 derived some other way has been told something untrue about where it came from.
 
 What each declaration obliges is written out in [`ACTIONS.md`](ACTIONS.md).
+
+### Presets: a vocabulary the Engine validates
+
+A preset is the names a proposal uses **once something else has read the source**, written as a `.nost`
+document in [`presets/`](presets/jpa.nost). `scripts/presets.sh` lists them, says which one covers an
+annotation, and needs no Engine — a preset is part of this Skill, and asking somebody to install a database
+to find out which presets exist is the wrong order of operations.
+
+Two things a preset is:
+
+- a **vocabulary**. `nostdb-spec` accepts a consequence rather than solving it — a record may name a schema
+  that was never declared, so a misspelled label is indistinguishable from an intentional bare one, and "no
+  syntax can tell the two apart while schemas remain optional". Fixing the names on the *producing* side is
+  the only place they can be told apart. Without a preset, a model proposing `Entity` today and `JpaEntity`
+  tomorrow produces two unvalidated labels and no error;
+- a **validation target**. `preset-check` hands the document to `nostdb check`, because a preset is a `.nost`
+  file and the Engine is what reads one. This Skill holds no validator, so a malformed preset fails before
+  it is ever offered to a model.
+
+**What a preset is not is an analyzer.** Nothing here reads `@Entity`. Deriving a fact from a preset without
+a model would make this Skill a second analyzer — reading annotations the Engine's own analyzers do not read
+— which is what the rule about an AI-free action having the CLI do the work exists to prevent. So
+`preset-apply` is `required`: the interpretation is the model's, and the validation is the Engine's.
+
+#### How a preset is chosen
+
+By the Engine's own report, not by naming a framework. A build reports the annotations it saw and did **not**
+interpret, and `scripts/presets.sh for Entity` answers which preset covers one. Naming the framework instead
+would need a list of frameworks this build knows of and cannot read, which is a closed allowlist by another
+route.
+
+#### The order, which is the enrichment order
+
+1. build and **commit** the structural graph first, so an AI failure cannot erase structural facts;
+2. read the uninterpreted annotations from the build, and find the preset that covers them;
+3. `preset-check` it, so a broken preset fails before a token is spent;
+4. plan and check the budget, exactly as [`ENRICHMENT.md`](ENRICHMENT.md) requires;
+5. the model proposes a change set whose owner is `ai` and whose evidence is `inferred`, using the preset's
+   names and nothing else;
+6. show the exact scope, take a confirmation, and `nostdb apply` it. The Engine validates the generation,
+   the endpoints, the ownership, and the evidence, and a failed apply preserves the last valid generation.
+
+Step 5's owner matters. An `ai` contribution is withdrawable on its own, so a preset's facts can be replaced
+without touching what an analyzer wrote — which is what keeps a preset safe to modify.
 
 ## Natural language: the statement decides, not the label
 

@@ -51,6 +51,35 @@ Prohibited:
 - a plugin manager, which exists once in `nostdb-cli`;
 - an action that changes state without the Engine.
 
+## Presets
+
+A preset is a `.nost` document under `skills/<name>/presets/`, and an index beside it saying which
+annotations each one covers.
+
+Two things it is:
+
+- a **vocabulary** — the names a proposal uses once something else has read the source. `nostdb-spec` accepts
+  a consequence rather than solving it: a record may name a schema that was never declared, so a misspelled
+  label is indistinguishable from an intentional bare one and no syntax can tell them apart while schemas
+  remain optional. Fixing the names on the producing side is the only place they can be;
+- a **validation target** — the Engine checks it, because it is a `.nost` file and the Engine reads those.
+
+**A preset is not an analyzer, and deriving a fact from one AI-free is prohibited.** Nothing in this
+repository reads `@Entity`. A Skill that interpreted a preset's annotations itself would be a second
+analyzer — one reading what the Engine's own analyzers do not read — which the AI-free rule below exists to
+prevent. So an action that applies a preset is `required`: the interpretation is the model's, the vocabulary
+is the preset's, and the validation is the Engine's.
+
+Two rules a preset must follow, both tested:
+
+- it declares no label a build already writes. A schema is unowned, so a preset sharing a name with a builtin
+  label is replaced on the next build — the preset would vanish and the only sign would be a warning;
+- it declares no label called `Schema`. NostDB already has schemas, and a preset is made of them.
+
+A preset's records reach the graph through `nostdb apply`, owned by `ai`. That ownership is what makes a
+preset safe to modify: an `ai` contribution is withdrawable on its own, so replacing a preset's facts never
+touches what an analyzer wrote.
+
 ## Invariants this repository must never break
 
 - **An AI-free action has the CLI do the work.** It never computes an answer itself. Two

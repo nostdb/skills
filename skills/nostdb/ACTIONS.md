@@ -15,10 +15,13 @@ is also how `--ai=off` means something: it is a filter over this column, not a h
 | `/nostdb . --ai=full` | required | enrichment is not optional, and the action fails without it |
 | `/nostdb . --nost` | optional | the same, materializing the canonical `.nost` as well |
 | `/nostdb .nostdb/root.nost --sync` | none | reconciles the two representations |
+| `/nostdb summary .` | none | reports the totals, the kinds present, and whether the container is sound |
 | `/nostdb query --cypher '...'` | none | runs a statement the caller wrote |
 | `/nostdb query "..."` | required | generates openCypher from a question |
 | `/nostdb view .` | none | opens a viewer plugin |
 | `/nostdb plugin add '...'` | none | installs a plugin through the CLI |
+| `/nostdb preset` | none | lists the schema presets, and has the Engine validate one |
+| `/nostdb preset jpa` | required | proposes records in a preset's vocabulary, for the Engine to validate |
 
 ## What `none` obliges
 
@@ -35,11 +38,38 @@ What it protects against is a second engine. Two implementations of one question
 the one a user gets would depend on which surface they happened to use — so every `none` row above is a
 row a fixture can pin to the commands it runs.
 
+### The action that runs five commands
+
+`/nostdb summary` asks the Engine for every number it reports. Counting the graph in the Skill would
+be a few lines of awk, and this is where that would look harmless: the report carries two pairs of
+numbers that mean different things, a second implementation would quietly conflate them, and no test
+of the command mapping would notice. Which pairs, and why they differ, is in `SKILL.md`, where
+whoever renders the report reads.
+
+The declared schema *names* have no read-only Engine command at all, so the count is what `summary`
+reports. Reaching for the canonical `.nost` instead would mean `export`, which writes, and then
+parsing the language. A Skill does neither.
+
 ### The one action that runs nothing
 
 `/nostdb help` describes this Skill. It used to map to `nostdb help`, which meant reading a help message
 required resolving an Engine first — and with none installed, resolution stops and asks whether to
 install one. Nobody should have to install a database to find out what a Skill does.
+
+### A preset is a vocabulary, which is why applying one is `required`
+
+`/nostdb preset` lists what this Skill ships and hands a preset to `nostdb check`, because a preset is a
+`.nost` document and the Engine is what reads one. That much is `none`: the Skill computes nothing and the
+Engine validates.
+
+`/nostdb preset jpa` is `required`, and the reason is the whole point of the boundary. A preset names what a
+persistence mapping is called *once something has read it*; nothing in this Skill reads `@Entity`. Deriving
+the facts from a preset AI-free would make the Skill a second analyzer — one reading annotations the
+Engine's own analyzers do not read — and that is precisely what `none` forbids.
+
+So the interpretation is the model's, the vocabulary is the preset's, and the validation is the Engine's. The
+proposal's owner is `ai`, which is what makes a preset safe to modify: an `ai` contribution is withdrawable
+on its own, so replacing a preset's facts does not touch what an analyzer wrote.
 
 ## What `optional` means, and does not
 

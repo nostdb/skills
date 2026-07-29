@@ -1,0 +1,16 @@
+# Which preset covers which annotations, and what each one is for.
+#
+# Pipe separated rather than JSON, because the script that reads it is `/bin/sh` and this repository ships
+# no `jq`. A JSON index would mean either a dependency an install cannot assume or a parser written in shell,
+# and a parser in the Skill is the thing this whole boundary exists to avoid. Four fields, no nesting, and
+# nothing here needs more.
+#
+# name | document | annotations it covers | what it describes
+#
+# The annotation names are what a build reports as *uninterpreted*. That is how a preset is chosen: the
+# Engine says which annotations it saw and did not read, and a name in this column means a preset exists for
+# them. Matching on the Engine's own report rather than on a framework name is deliberate — naming the
+# framework would need a list of frameworks this build knows of and cannot read, which the root PRD's
+# section 4 forbids by another route.
+
+jpa | jpa.nost | Entity,Table,Column,Id,GeneratedValue,ManyToOne,OneToMany,OneToOne,ManyToMany,JoinColumn,Embeddable,Embedded,Transient | persistence mappings: entities, the columns they hold, and the associations between them
