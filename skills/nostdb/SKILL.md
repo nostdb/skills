@@ -3,7 +3,8 @@ name: nostdb
 description: Build, query, and synchronize a NostDB property graph of a codebase through the nostdb command surface. Use when asked to create or refresh a .nostdb, materialize the canonical .nost, run an openCypher query over a code graph, ask in natural language how parts of a codebase connect, reconcile .nost with .nostdb, open a graph viewer, or install a NostDB plugin.
 license: Apache-2.0
 metadata:
-  version: 1
+  version: 0.1.3
+  engine: latest
   requires:
     nost_language_version: 2
     query_subset_version: 1
@@ -69,10 +70,19 @@ scripts/resolve-engine.sh nost_language_version 2
 scripts/resolve-engine.sh query_subset_version 1
 ```
 
-Pass no version. The Skill names the **contract** it needs and lets the install be the newest release
-that satisfies it; a version baked into a Skill definition is a version that goes stale in a document
-nobody re-reads. A third argument is still accepted, and a caller who has a reason to pin one gets the
-pinned `npx` option as well.
+Pass no version. **This Skill always resolves the newest release**, which is what `engine: latest` in its
+frontmatter declares. It names the **contract** it needs and lets the install be whatever newest release
+satisfies it; a version baked into a Skill definition is a version that goes stale in a document nobody
+re-reads.
+
+`metadata.version` is this Skill's own version and moves with the product's release number. It is not a
+version of anything it resolves — the two are different questions, and a reader seeing one number would
+otherwise reasonably assume the Skill was tied to that Engine.
+
+A third argument is still accepted, and a caller who has a reason to pin one gets the pinned `npx` option
+as well. That is for somebody who asked; it is never what happens by default. What the product contract
+forbids is an unpinned `latest` **fallback** — the thing that happens when nobody chose — and with no
+choice this resolves nothing and exits `1`.
 
 It prints the command to use and nothing else. Exit `0` resolved, `1` nothing compatible found
 and no decision, `2` used incorrectly, `3` the caller chose to continue with no Engine.

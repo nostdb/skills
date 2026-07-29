@@ -340,5 +340,38 @@ else
   failures=$((failures + 1))
 fi
 
+# The default resolves the newest release, and the definition says so.
+#
+# Declared *and* behavioural, because the two can drift: a frontmatter line claiming `latest` while the
+# script emits a pinned command would be a promise nothing kept, and a script that happens to be unpinned
+# with nothing saying it should be is one commit from being pinned by somebody who thinks it was an
+# oversight.
+if ! grep -q '^  engine: latest$' "$here/../skills/nostdb/SKILL.md"; then
+  echo "FAIL SKILL.md does not declare engine: latest" >&2
+  failures=$((failures + 1))
+else
+  echo "ok   the definition declares it resolves the newest release"
+fi
+
+got=$(NOSTDB_SKILL_ENGINE_CHOICE=npx "$resolve" nost_language_version 2 2>/dev/null)
+case "$got" in
+  *"--package=nostdb@"*)
+    echo "FAIL the default pins a version: $got" >&2
+    failures=$((failures + 1)) ;;
+  *"--package=nostdb "*)
+    echo "ok   and with no version asked for, it resolves unpinned" ;;
+  *)
+    echo "FAIL the default resolved something unexpected: $got" >&2
+    failures=$((failures + 1)) ;;
+esac
+
+# A caller who asks for a version still gets one. Removing that would leave no way to pin at all, and the
+# contract's objection is to an unpinned *fallback*, not to pinning on request.
+got=$(NOSTDB_SKILL_ENGINE_CHOICE=npx "$resolve" nost_language_version 2 0.1.3 2>/dev/null)
+case "$got" in
+  *"--package=nostdb@0.1.3"*) echo "ok   and a caller who asks for a version gets it pinned" ;;
+  *) echo "FAIL a requested version was not pinned: $got" >&2; failures=$((failures + 1)) ;;
+esac
+
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }
 echo "resolution: every check passed"
