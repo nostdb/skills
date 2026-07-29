@@ -28,6 +28,29 @@ set -eu
 # The resolved command, or the bare name when a caller is only inspecting the mapping.
 NOSTDB=${NOSTDB:-nostdb}
 
+# How a command is told which project to work on.
+#
+# `build` and `plan` take `--project PATH`; every other path-taking command takes a positional. That is
+# not a style choice. Release 0.1.0 **refuses** a positional path to `build`, a later build accepts one,
+# and the two report byte-identical `--version --json` — so a positional worked against source and failed
+# against the published Engine, and nothing in the compatibility check could tell them apart.
+#
+# `--project` is accepted by every version, so it is what is emitted.
+project() {
+  printf -- '--project %s' "$1"
+}
+
+# `init`, but only when the project is not configured.
+#
+# The guard stays in the emitted command, because the state can change between printing a command and
+# running it. What changed is that `init` is left out entirely when the settings file is already there:
+# somebody shown a command containing `init` reasonably reads it as "this will initialize", and being
+# told that about a project configured weeks ago is how a correct guard reads as a bug.
+configure() {
+  [ -f "$1/.nostdb/settings.json" ] && return 0
+  printf '[ -f %s/.nostdb/settings.json ] || %s init %s; ' "$1" "$NOSTDB" "$1"
+}
+
 [ "$#" -ge 1 ] || { echo "usage: dispatch.sh <action> [arguments...]" >&2; exit 2; }
 action=$1
 shift
@@ -62,12 +85,12 @@ case "$action" in
     # project and exits 2 so that a re-run cannot discard configuration. `/nostdb .` has to work the
     # second time as well as the first, and the guard is the settings file `init` itself writes.
     target=${1:-.}
-    echo "[ -f $target/.nostdb/settings.json ] || $NOSTDB init $target; $NOSTDB build $target"
+    echo "$(configure "$target")$NOSTDB build $(project "$target")"
     ;;
   build-nost)
     # The same, materializing the canonical `.nost` afterwards.
     target=${1:-.}
-    echo "[ -f $target/.nostdb/settings.json ] || $NOSTDB init $target; $NOSTDB build $target && $NOSTDB export --nost $target"
+    echo "$(configure "$target")$NOSTDB build $(project "$target") && $NOSTDB export --nost $target"
     ;;
   sync)
     echo "$NOSTDB sync ${1:-.}"

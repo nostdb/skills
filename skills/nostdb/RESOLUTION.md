@@ -170,6 +170,28 @@ A command that does not answer `--version --json` is not treated as an old `nost
 treated as not being `nostdb` at all, because something on the path with the right name and
 the wrong behavior is more dangerous than nothing on the path.
 
+## What a version report cannot tell you
+
+Compatibility is asked per contract, and a contract version covers a file format or a protocol. **It
+does not cover the command surface.**
+
+Release 0.1.0 refuses `nostdb build <path>` and accepts `nostdb build --project <path>`. A later build
+accepts both. The two report **byte-identical** `--version --json` — every contract, every version —
+because no contract changed. So a Skill can resolve an Engine, be told every version it asked for is
+supported, and then hand it an argument it rejects.
+
+Nothing in this resolution can detect that, and pretending otherwise would be worse than saying it. Two
+things follow, and the Skill does both:
+
+- **emit the form every version accepts.** `build` and `plan` are given `--project PATH`; the others
+  take a positional, which every version has always accepted;
+- **run the emitted command in the suite**, against whatever Engine is on the path. That catches a
+  command no Engine would take. It does not catch one that a newer Engine accepts and an older one
+  refuses, which is precisely the case above — so the form is pinned by name as well.
+
+A contract version for the command surface would be the real fix. It does not exist, and inventing one
+here would be a version this Skill alone believed in.
+
 ## What resolution does not do
 
 It does not install anything. If no compatible Engine is found, the Skill reports the exact

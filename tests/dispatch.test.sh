@@ -53,8 +53,10 @@ case "$got" in
   *"ENGINE init ."*) echo "ok   /nostdb . configures the project" ;;
   *) echo "FAIL build does not init: [$got]" >&2; failures=$((failures + 1)) ;;
 esac
+# `--project .` rather than a bare `.`: release 0.1.0 refuses a positional path to `build`, a later build
+# accepts one, and both report the same version data. `--project` is what every version accepts.
 case "$got" in
-  *"ENGINE build ."*) echo "ok   /nostdb . analyzes the project" ;;
+  *"ENGINE build --project ."*) echo "ok   /nostdb . analyzes the project" ;;
   *) echo "FAIL build does not build: [$got]" >&2; failures=$((failures + 1)) ;;
 esac
 
@@ -196,6 +198,62 @@ for action in query-natural enrich; do
     failures=$((failures + 1))
   } || echo "ok   $action is not reachable AI-free"
 done
+
+# Every emitted command is one a real Engine accepts.
+#
+# The suite used to pin only the *string* the dispatcher printed, and never asked whether anything would
+# run it. Pinning a string proves the mapping did not drift; it does not prove the mapping works.
+#
+# Its reach is exactly the Engine on this path, and that is worth being clear about: it would **not**
+# have caught the bug that prompted it. `build <path>` is refused by release 0.1.0 and accepted by a
+# later build, and both report byte-identical `--version --json` — so run against a fixed Engine this
+# passes, and Engine resolution cannot tell the two apart either. The check above, which requires
+# `--project` by name, is what pins that decision; this one catches a command no Engine would take.
+if command -v nostdb >/dev/null 2>&1; then
+  work=$(mktemp -d)
+  # Configured first, so the guard is exercised in the state a second run is in.
+  nostdb init "$work" >/dev/null 2>&1 || true
+  for action in build build-nost sync view; do
+    emitted=$(NOSTDB=nostdb "$dispatch" "$action" "$work" 2>/dev/null)
+    out=$(sh -c "$emitted" 2>&1 || true)
+    case "$out" in
+      *"does not take"* | *"unknown option"* | *"needs a"* | *"Run \`nostdb help\`"*)
+        echo "FAIL $action emits a command the Engine refuses: $out" >&2
+        failures=$((failures + 1)) ;;
+      *) echo "ok   $action emits a command the Engine accepts" ;;
+    esac
+  done
+  # And a statement, which takes its argument a different way again.
+  emitted=$(NOSTDB=nostdb "$dispatch" query-cypher 'MATCH (n) RETURN n' 2>/dev/null)
+  out=$(cd "$work" && sh -c "$emitted" 2>&1 || true)
+  case "$out" in
+    *"does not take"* | *"unknown option"*)
+      echo "FAIL query-cypher emits a command the Engine refuses: $out" >&2
+      failures=$((failures + 1)) ;;
+    *) echo "ok   query-cypher emits a command the Engine accepts" ;;
+  esac
+  rm -rf "$work"
+else
+  echo "skip no nostdb on the path; the emitted commands were not run"
+fi
+
+# `init` is left out when the project is already configured, and present when it is not. A guard that is
+# correct and *looks* wrong gets reported as a bug, which is what happened.
+configured=$(mktemp -d)
+mkdir -p "$configured/.nostdb" && : > "$configured/.nostdb/settings.json"
+got=$(NOSTDB=ENGINE "$dispatch" build "$configured" 2>/dev/null)
+case "$got" in
+  *init*) echo "FAIL a configured project is still told to init: $got" >&2; failures=$((failures + 1)) ;;
+  *) echo "ok   a configured project is not told to init" ;;
+esac
+rm -rf "$configured"
+
+absent=$(mktemp -d) && rmdir "$absent"
+got=$(NOSTDB=ENGINE "$dispatch" build "$absent" 2>/dev/null)
+case "$got" in
+  *"|| ENGINE init"*) echo "ok   an unconfigured one is, and the guard is still there" ;;
+  *) echo "FAIL an unconfigured project is not told to init: $got" >&2; failures=$((failures + 1)) ;;
+esac
 
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }
 echo "dispatch: every check passed"
