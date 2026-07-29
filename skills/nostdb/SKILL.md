@@ -234,8 +234,12 @@ than merely wrong.
 3. pipe that plan through the gate. Pass `non-interactive` when nobody can be asked:
 
 ```bash
-nostdb plan --format json . | scripts/budget-check.sh
+nostdb plan --format json --project . | scripts/budget-check.sh
 ```
+
+`--project`, for the same reason `build` uses it. Release 0.1.0 refuses a positional path to `plan`, and
+a later build refused it too when an option came first — so the spelling documented here was one that
+worked in neither. `--project` is accepted by every version in either position.
 
 It prints `proceed`, `ask`, `skip`, or `refuse`, with exit codes `0`, `1`, `2`, `3`, and `4`
 when the plan could not be read. `refuse` is not `skip`: a skip says nobody was asked, and a

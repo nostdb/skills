@@ -255,5 +255,38 @@ case "$got" in
   *) echo "FAIL an unconfigured project is not told to init: $got" >&2; failures=$((failures + 1)) ;;
 esac
 
+
+# The Skill's own prose is checked too, because that is where this escaped.
+#
+# `SKILL.md` documented `nostdb plan --format json .` for the enrichment step. The dispatcher never
+# emits it, so every check above passed while the one command a reader would copy was refused by
+# release 0.1.0 and — because an option came first — by a later build as well.
+#
+# The rule is the one already decided for `build`: a documented invocation names its project with
+# `--project`, which every version accepts in either position. A bare `.` depends both on the
+# Engine's version and on where in the line it sits.
+#
+# Lines beginning with `nostdb` only, so the Skill's own `/nostdb .` surface is not mistaken for a
+# CLI invocation. It is the Skill's spelling and takes a bare path by design.
+documented=0
+for document in "$skill"/*.md; do
+  while IFS= read -r text; do
+    [ -n "$text" ] || continue
+    documented=$((documented + 1))
+    case " $text " in
+      *" --project "*) continue ;;
+    esac
+    case " $text " in
+      *" . "* | *" ."*)
+        echo "FAIL $(basename "$document") documents a bare positional path: $text" >&2
+        failures=$((failures + 1)) ;;
+    esac
+  done <<EOF
+$(grep -hE '^[[:space:]]*nostdb ' "$document" || true)
+EOF
+done
+check "a documented invocation was found to check" "$([ "$documented" -gt 0 ] && echo yes)" "yes"
+[ "$failures" -eq 0 ] && echo "ok   every documented invocation names its project with --project"
+
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }
 echo "dispatch: every check passed"
