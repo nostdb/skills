@@ -33,6 +33,32 @@ storage engine, a synchronizer, an analyzer, or a query engine.
 - **A drafted `.nost` is not a build.** Reporting one as though it were reports a success
   that did not happen.
 
+## Surface
+
+This is what `/nostdb help` shows. **Show it from here.** Do not resolve an Engine and do not run
+anything: `help` describes this Skill, the Skill is what knows, and asking somebody to install a
+database in order to read a help message is the wrong order of operations.
+
+```text
+/nostdb .                          analyze this folder and write the database
+/nostdb . --nost                   the same, and materialize the canonical .nost
+/nostdb . --ai=off                 the same, with enrichment refused rather than skipped
+/nostdb . --ai=full                enrichment required; fails without a model
+/nostdb .nostdb/root.nost --sync   reconcile .nost and .nostdb
+/nostdb query --cypher '...'       run a statement you wrote
+/nostdb query "..."                ask in English; the generated Cypher is shown
+/nostdb view .                     render the graph through a viewer plugin
+/nostdb plugin add '...'           install a plugin from a pinned GitHub source
+/nostdb help                       this
+```
+
+`/nostdb .` with no path means the current folder. It configures the project if it is not configured,
+analyzes the whole tree, and writes `.nostdb/settings.json` and `.nostdb/root.nostdb`.
+
+It does **not** write `.nost` unless the project already has it enabled or `--nost` is passed. A flag's
+absence is not a request, and materialization is an explicit choice rather than a side effect of
+building.
+
 ## Step 1: resolve the Engine
 
 Do this before every action that touches a database, and pass the contract version the action
@@ -117,8 +143,7 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 
 | Action | Serves | AI usage |
 | --- | --- | --- |
-| `help` | `/nostdb help` | none |
-| `build` | `/nostdb . --ai=off` | none |
+| `build` | `/nostdb .` | optional |
 | `build-nost` | `/nostdb . --nost` | optional |
 
 | `sync` | `/nostdb .nostdb/root.nost --sync` | none |
@@ -146,9 +171,13 @@ as well as the first. The guard is the settings file `init` itself writes.
 
 A bare `/nostdb` with no path means `.`.
 
-An **AI-free action must call the same Core command the command surface calls**, not an
-equivalent one. Two implementations of one action is two answers to one question, and which
-one a user gets would depend on the surface they happened to reach for.
+An action is **not** required to be one CLI command, or to be named after one. `build` runs two
+commands and `help` runs none — the Skill's surface is its own, and shaping it around what somebody
+would ask for beats mirroring a command table.
+
+What every AI-free action must do is **have the CLI do the work**. The Skill composes commands and
+never computes an answer itself: two implementations of one question is two answers, and which one a
+user gets would depend on the surface they happened to reach for.
 
 A **`required` action with no model fails.** It does not fall back to a deterministic
 approximation and report success: a caller who asked a question in English and got an answer

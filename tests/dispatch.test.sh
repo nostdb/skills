@@ -21,12 +21,16 @@ check() {
   fi
 }
 
-# Every AI-free action invokes the CLI. Not an equivalent command, and not a reimplementation: the
-# same one the CLI offers.
+# Every action that runs anything has the CLI run it. Not an equivalent command, and not a
+# reimplementation.
 #
 # Matched on the resolved command appearing rather than on the line starting with `nostdb`, because
-# two mappings now begin with a guard that decides whether the project needs configuring first.
-for action in help build build-nost sync view; do
+# two mappings begin with a guard that decides whether the project needs configuring first.
+#
+# `help` is deliberately absent: it runs nothing, because `/nostdb help` describes the Skill and the
+# Skill is what knows. An action is not required to be one CLI command or to be named after one — what
+# is required is that whatever work happens is the CLI's.
+for action in build build-nost sync view; do
   got=$(NOSTDB=ENGINE "$dispatch" "$action" 2>/dev/null || echo "REFUSED")
   case "$got" in
     *ENGINE\ *) echo "ok   $action invokes the CLI" ;;
@@ -42,7 +46,8 @@ got=$(NOSTDB="npx --yes --package=nostdb nostdb" "$dispatch" build-nost . 2>/dev
 check "every occurrence is substituted, not just the first" \
   "$(printf '%s\n' "$got" | grep -o 'npx --yes --package=nostdb nostdb' | wc -l | tr -d ' ')" "3"
 
-# `/nostdb .` is the whole of it: configure if needed, then analyze.
+# A bare `/nostdb .` is what `build` serves. It is the whole of it: configure if needed, then analyze
+# the tree and write the database.
 got=$(NOSTDB=ENGINE "$dispatch" build . 2>/dev/null)
 case "$got" in
   *"ENGINE init ."*) echo "ok   /nostdb . configures the project" ;;
@@ -65,6 +70,46 @@ got=$(NOSTDB=ENGINE "$dispatch" build-nost . 2>/dev/null)
 case "$got" in
   *"ENGINE export --nost ."*) echo "ok   --nost materializes the .nost" ;;
   *) echo "FAIL build-nost does not export: [$got]" >&2; failures=$((failures + 1)) ;;
+esac
+
+# `/nostdb help` needs no Engine. It used to map to `nostdb help`, so reading a help message required
+# resolving one — and with none installed, resolution stops and asks whether to install. Nobody should
+# have to install a database to find out what a Skill does.
+"$dispatch" help >/dev/null 2>&1 && r=$? || r=$?
+check "help is not a command the dispatcher maps" "$r" "1"
+got=$("$dispatch" help 2>&1 >/dev/null || true)
+case "$got" in
+  *help.sh*) echo "ok   and it points at the script that answers it" ;;
+  *) echo "FAIL help does not name help.sh: [$got]" >&2; failures=$((failures + 1)) ;;
+esac
+
+# The help text comes out of SKILL.md rather than being a second copy. Two copies of one surface drift,
+# and the one that drifts is the one nobody reads while editing the other.
+surface=$("$skill/scripts/help.sh" 2>/dev/null || echo FAILED)
+case "$surface" in
+  *"/nostdb ."*) echo "ok   help.sh prints the surface with no Engine" ;;
+  *) echo "FAIL help.sh printed [$surface]" >&2; failures=$((failures + 1)) ;;
+esac
+for expected in "/nostdb query --cypher" "/nostdb view ." "/nostdb plugin add" "/nostdb help"; do
+  case "$surface" in
+    *"$expected"*) : ;;
+    *) echo "FAIL the surface omits $expected" >&2; failures=$((failures + 1)) ;;
+  esac
+done
+echo "ok   and it names every action a caller can ask for"
+
+# Extracted rather than copied, proven by editing the source and seeing the edit come out. A grep for a
+# string this test invented would pass just as well against a hard-coded copy, which is what this has to
+# rule out.
+probe="zzz-extraction-probe-$$"
+cp "$skill/SKILL.md" "$skill/SKILL.md.orig"
+sed -i.bak "s|^/nostdb help .*|/nostdb help                       $probe|" "$skill/SKILL.md"
+rm -f "$skill/SKILL.md.bak"
+moved=$("$skill/scripts/help.sh" 2>/dev/null || echo FAILED)
+mv "$skill/SKILL.md.orig" "$skill/SKILL.md"
+case "$moved" in
+  *"$probe"*) echo "ok   the text is read from SKILL.md, not copied into the script" ;;
+  *) echo "FAIL help.sh did not follow an edit to SKILL.md" >&2; failures=$((failures + 1)) ;;
 esac
 
 got=$("$dispatch" query-cypher 'MATCH (n) RETURN n' 2>/dev/null)
@@ -114,7 +159,16 @@ map=$(
 # without a model. So the dispatcher legitimately maps more than the `none` rows, and an
 # arithmetic check on prose could not express that.
 ai_free=$(printf '%s\n' "$map" | awk -F'\t' '$3 != "required" { printf "%s ", $1 }')
-labels=$(grep -oE '^  [a-z-]+\)$' "$dispatch" | tr -d ' )' | tr '\n' ' ')
+
+# Which actions the dispatcher maps is decided by *running* it, not by reading its case labels. `help`
+# is a label and maps nothing, so a textual scan counted an action that emits no command — and an
+# action is no longer required to emit one, which is exactly why the check cannot be textual any more.
+labels=""
+for label in $(grep -oE '^  [a-z-]+\)$' "$dispatch" | tr -d ' )'); do
+  if NOSTDB=ENGINE "$dispatch" "$label" . >/dev/null 2>&1; then
+    labels="$labels$label "
+  fi
+done
 check "the dispatcher maps exactly the AI-free actions SKILL.md declares" "$labels" "$ai_free"
 
 # And every invocation SKILL.md promises is one the table declares, with the same AI usage.

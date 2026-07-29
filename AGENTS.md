@@ -53,8 +53,13 @@ Prohibited:
 
 ## Invariants this repository must never break
 
-- **An AI-free action calls the same Core command the CLI calls.** Not an equivalent one.
-  Two implementations of one action is two answers to one question.
+- **An AI-free action has the CLI do the work.** It never computes an answer itself. Two
+  implementations of one question is two answers, and which one a user gets would depend on the
+  surface they reached for.
+- **An action need not be one CLI command, or be named after one.** `/nostdb .` runs two and
+  `/nostdb help` runs none. The Skill's surface is its own, shaped around what somebody would ask
+  for rather than around a command table — what is fixed is who does the work, not how the
+  request is spelled.
 - **Every action declares its AI usage**, and that declaration is part of its identity.
 - **No AI call starts before a visible plan and a budget check.**
 - **A natural-language write shows its exact scope and requires confirmation.**
@@ -69,7 +74,8 @@ Prohibited:
 The testable surface is everything around the model call, because a model's output is not
 reproducible even in principle and no fixture can pin it.
 
-- every AI-free action, with a fixture proving it invokes the same Core command as the CLI;
+- every AI-free action, with a fixture pinning the CLI commands it invokes — one, several, or
+  none, and named however the Skill names it;
 - Engine resolution: the order, and the version check that decides compatibility;
 - packet construction: what is included, and that a secret never is;
 - the budget check: what it permits and what it refuses;

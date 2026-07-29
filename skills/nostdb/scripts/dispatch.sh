@@ -32,18 +32,31 @@ NOSTDB=${NOSTDB:-nostdb}
 action=$1
 shift
 
-# Every row here corresponds to a `none` row in nostdb/ACTIONS.md, and the test asserts that
-# correspondence in both directions: a table row with no mapping fails, and a mapping with no
-# table row fails. A table that drifted from the dispatcher would describe a Skill that does
-# not exist.
+# Every row here maps an action to the CLI commands that do its work, and the test asserts the
+# correspondence with the shipped table in both directions: a table row with no mapping fails, and a
+# mapping with no table row fails. A table that drifted from the dispatcher would describe a Skill that
+# does not exist.
+#
+# An action is **not** required to be one CLI command, or to be named after one. `build` runs two, and
+# `help` runs none. What every AI-free action must do is have the CLI do the work — the Skill composes
+# commands and never computes an answer itself, because two implementations of one question is two
+# answers and which one a user gets would depend on the surface they reached for.
 case "$action" in
   help)
-    echo "$NOSTDB help"
+    # Not a command. `/nostdb help` describes *this Skill*, and the Skill is what knows — so it
+    # answers from its own definition rather than resolving an Engine to ask one.
+    #
+    # Refused here rather than printing the text, so this script keeps one output contract: it prints a
+    # command to run. An action that printed prose instead would make every caller check which kind of
+    # output it got.
+    echo "help is answered by the Skill; run scripts/help.sh, which needs no Engine" >&2
+    exit 1
     ;;
   build)
-    # `/nostdb .` end to end: configure the project if it is not configured, then analyze it and
-    # commit what was found. The build itself is AI-free and always was — structural analysis of
-    # supported source spends no external tokens.
+    # A bare `/nostdb .` end to end: configure the project if it is not configured, then analyze the
+    # whole tree and commit what was found, writing `.nostdb/settings.json` and `.nostdb/root.nostdb`.
+    # The analysis is AI-free and always was — structural analysis of supported source spends no
+    # external tokens, so this is the whole of `/nostdb .` and enrichment is a separate step on top.
     #
     # `init` is guarded rather than run unconditionally, because it refuses an already-configured
     # project and exits 2 so that a re-run cannot discard configuration. `/nostdb .` has to work the

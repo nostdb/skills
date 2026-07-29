@@ -9,7 +9,7 @@ is also how `--ai=off` means something: it is a filter over this column, not a h
 
 | Action | AI usage | What it does |
 | --- | --- | --- |
-| `/nostdb help` | none | describes the surface |
+| `/nostdb help` | none | describes the surface, answered by the Skill without an Engine |
 | `/nostdb .` | optional | configures the project if it is not, analyzes it, and commits what it found; enrichment is the optional part |
 | `/nostdb . --ai=off` | none | the same build, with enrichment refused rather than skipped |
 | `/nostdb . --ai=full` | required | enrichment is not optional, and the action fails without it |
@@ -22,13 +22,24 @@ is also how `--ai=off` means something: it is a filter over this column, not a h
 
 ## What `none` obliges
 
-An AI-free action **must call the same Core command the command surface calls**. Not an
-equivalent one, and not its own implementation of the same idea.
+An AI-free action **has the CLI do the work**. It does not compute an answer itself, and it does not
+carry its own implementation of something the Engine already does.
 
-The Skill is an extension of the CLI, not a second engine. Two implementations of one action
-is two answers to one question, and the one a user gets would depend on which surface they
-happened to use. Every `none` row above is therefore a row that a fixture can pin, and the
-root contract requires exactly that.
+That is the whole of the obligation. It is deliberately *not* a requirement that an action be one CLI
+command, or be named after one: `/nostdb .` runs two, and `/nostdb help` runs none because the Skill is
+the thing that knows what the Skill does. A surface shaped around what somebody would ask for is worth
+more than one that mirrors a command table, and mirroring never bought anything the rule below does not
+already buy.
+
+What it protects against is a second engine. Two implementations of one question is two answers, and
+the one a user gets would depend on which surface they happened to use — so every `none` row above is a
+row a fixture can pin to the commands it runs.
+
+### The one action that runs nothing
+
+`/nostdb help` describes this Skill. It used to map to `nostdb help`, which meant reading a help message
+required resolving an Engine first — and with none installed, resolution stops and asks whether to
+install one. Nobody should have to install a database to find out what a Skill does.
 
 ## What `optional` means, and does not
 
