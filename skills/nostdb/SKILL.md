@@ -42,9 +42,8 @@ database in order to read a help message is the wrong order of operations.
 
 ```text
 /nostdb .                          analyze this folder and write the database
-/nostdb . --nost                   the same, and materialize the canonical .nost
-/nostdb . --ai=off                 the same, with enrichment refused rather than skipped
-/nostdb . --ai=full                enrichment required; fails without a model
+/nostdb . --scan=ai                the same, but AI is required; fails without a model
+/nostdb export .                   write the graph as canonical .nost
 /nostdb .nostdb/root.nost --sync   reconcile .nost and .nostdb
 /nostdb summary .                  report how much is in the database, and of what kinds
 /nostdb query --cypher '...'       run a statement you wrote
@@ -54,14 +53,55 @@ database in order to read a help message is the wrong order of operations.
 /nostdb preset jpa                 propose records for a preset, and apply them
 /nostdb plugin add '...'           install a plugin from a pinned GitHub source
 /nostdb help                       this
+
+Options:
+  --scan=default|ai                default: analyzers first, AI for what they could not
+                                   resolve. ai: the same, with the AI half required
+  --cypher '<statement>'           run a statement you wrote instead of a question
+  --sync                           reconcile rather than build; takes no value
 ```
 
 `/nostdb .` with no path means the current folder. It configures the project if it is not configured,
 analyzes the whole tree, and writes `.nostdb/settings.json` and `.nostdb/root.nostdb`.
 
-It does **not** write `.nost` unless the project already has it enabled or `--nost` is passed. A flag's
-absence is not a request, and materialization is an explicit choice rather than a side effect of
-building.
+It does **not** write `.nost` unless the project already has it enabled. Materialization is an explicit
+choice rather than a side effect of building, and `/nostdb export .` is how it is asked for.
+
+### `--scan` names which reader does the work
+
+Two values. Both run both passes, and what differs is whether the second one is allowed to be missing:
+
+| Written | What happens | AI usage |
+| --- | --- | --- |
+| `--scan=default` | the deterministic analyzers read what they cover, and AI is asked about what they could not resolve, within the configured budget | `optional` |
+| `--scan=ai` | the same two passes, with the AI half **required** — the action fails rather than reporting a structural-only result | `required` |
+
+**`ai` does not mean AI alone.** Nothing suppresses the deterministic analyzers: no CLI option does, and the
+contract requires structural analysis of supported source to spend zero external tokens and a valid structural
+generation to be committed before any enrichment. So the analyzers always read first, and this value decides
+whether a run without a model is a result or a failure.
+
+`default` is what a bare `/nostdb .` does, so it gets no *invocation* line of its own — there would be
+nothing to say about it that the line above does not already say. It appears in the surface's `Options` block
+because a value a reader cannot see is not documented, and saying it explicitly is how somebody asks for the
+default on purpose.
+
+To spend **nothing**, set `analysis.ai_mode` to `off` in `.nostdb/settings.json`. That is a project's standing
+answer rather than a flag somebody has to remember, and the Engine reads it on every build.
+
+### `/nostdb export .` writes the document, once
+
+It writes `.nost` from what is already in the database. It does **not** build first, so run `/nostdb .`
+before it if the source has changed — and it does not need to be run at all on a project that already has
+`.nost` enabled, where every build keeps it current.
+
+`nost` is the default and the only representation this Engine writes, so there is no option to select one.
+The reserved spelling for the day there is a second is recorded in the root `IMPLEMENTATION_PROGRESS.md`,
+not here: a help screen that names a flag doing nothing describes a Skill that does not exist.
+
+**The Engine warns that the document will not be kept current**, because writing it does not set
+`database.nost`, and no command sets it. Say so when relaying the warning rather than treating it as a
+failure: the file is written and correct, and it is a snapshot rather than something maintained.
 
 ## Step 1: resolve the Engine
 
@@ -172,7 +212,7 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | Action | Serves | AI usage |
 | --- | --- | --- |
 | `build` | `/nostdb .` | optional |
-| `build-nost` | `/nostdb . --nost` | optional |
+| `export` | `/nostdb export .` | none |
 | `sync` | `/nostdb .nostdb/root.nost --sync` | none |
 | `summary` | `/nostdb summary .` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
@@ -180,7 +220,7 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | `plugin-add` | `/nostdb plugin add '...'` | none |
 | `preset-check` | `/nostdb preset` | none |
 | `query-natural` | `/nostdb query "..."` | required |
-| `enrich` | `/nostdb . --ai=full` | required |
+| `enrich` | `/nostdb . --scan=ai` | required |
 | `preset-apply` | `/nostdb preset jpa` | required |
 
 ### `/nostdb .` configures, analyzes, and writes
@@ -192,8 +232,20 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 ```
 
 `init` creates `.nostdb/settings.json` and `.nostdb/root.nostdb`; `build` walks the tree, analyzes
-what an analyzer covers, and commits what it found. `build-nost` adds `export --nost`, which writes
-the canonical `.nostdb/root.nost`.
+what an analyzer covers, and commits what it found. It writes no `.nost` — `export` is a separate action,
+because the Engine separates them and because a build that materialized as a side effect would be doing
+something nobody asked for.
+
+`export` emits one command and takes no guard:
+
+```bash
+nostdb export --nost .
+```
+
+The surface says `export` and the command says `--nost`, which is deliberate rather than a mismatch. `nost`
+is the surface's default, where a person reads it; the flag is spelled at the boundary, where it runs. The
+CLI requires it so that a later representation cannot silently change what a bare `export` means, and
+spelling it keeps that guarantee whatever the surface later grows.
 
 `init` is **guarded** rather than run unconditionally. It refuses an already-configured project and
 exits `2` so that a re-run cannot discard configuration, and `/nostdb .` has to work the second time

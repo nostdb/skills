@@ -32,7 +32,7 @@ already made.
 | a hard limit is configured and the estimate could exceed it | enrichment does not start |
 | no hard limit is configured | the estimate is shown and the user is asked, once |
 | no hard limit, and the session is non-interactive | enrichment is skipped |
-| `ai_mode` is `off` | enrichment is refused, not skipped quietly |
+| `ai_mode` is `off`, the only way to refuse AI outright | enrichment is refused, not skipped quietly |
 
 "Asked once" is the whole of it. A Skill that asked per unit would train a user to approve
 without reading, which is worse than not asking.

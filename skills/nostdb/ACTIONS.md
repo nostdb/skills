@@ -5,15 +5,14 @@ identity, not something discovered while it runs.
 
 The reason is budgeting. A caller has to know before invoking an action whether it can cost
 tokens, and an action that could quietly become AI-requiring is one nobody can plan for. It
-is also how `--ai=off` means something: it is a filter over this column, not a hope.
+is also how `--scan` means something: it selects over this column rather than hoping.
 
 | Action | AI usage | What it does |
 | --- | --- | --- |
 | `/nostdb help` | none | describes the surface, answered by the Skill without an Engine |
 | `/nostdb .` | optional | configures the project if it is not, analyzes it, and commits what it found; enrichment is the optional part |
-| `/nostdb . --ai=off` | none | the same build, with enrichment refused rather than skipped |
-| `/nostdb . --ai=full` | required | enrichment is not optional, and the action fails without it |
-| `/nostdb . --nost` | optional | the same, materializing the canonical `.nost` as well |
+| `/nostdb . --scan=ai` | required | the same build, with the AI half required rather than optional; fails without a model |
+| `/nostdb export .` | none | writes the graph as canonical `.nost`, once, from what is already built |
 | `/nostdb .nostdb/root.nost --sync` | none | reconciles the two representations |
 | `/nostdb summary .` | none | reports the totals, the kinds present, and whether the container is sound |
 | `/nostdb query --cypher '...'` | none | runs a statement the caller wrote |
@@ -74,12 +73,25 @@ on its own, so replacing a preset's facts does not touch what an analyzer wrote.
 ## What `optional` means, and does not
 
 `optional` means the action completes without a model and does more with one. It does not
-mean the action decides for itself: `--ai=off` refuses enrichment, and with no configured
-budget the contract requires asking once rather than proceeding.
+mean the action decides for itself: with no configured budget the contract requires asking once
+rather than proceeding.
 
-`--ai=off` on an already-enabled project turns off *enrichment*, not materialization.
-Omitting `--nost` does not turn `.nost` off either — disabling it is an explicit action,
-because a flag's absence is not a request.
+`--scan` has a second value, `default`, which is what a bare `/nostdb .` does and therefore has
+no row of its own. Both values run both passes — the deterministic analyzers read what they
+cover, and AI is asked about what they could not resolve. What `ai` changes is that the second
+pass is required, so a run without a model fails instead of reporting a structural-only result.
+
+Neither value spends nothing. `analysis.ai_mode` in `.nostdb/settings.json` takes `off`, which
+is where a no-tokens guarantee lives, and the Engine reads it on every build.
+
+Turning enrichment off does not turn materialization off either.
+Not running `/nostdb export .` does not turn `.nost` off either — disabling it is an explicit
+action, because an action not taken is not a request.
+
+`/nostdb export .` is `none` rather than `optional` because an export involves no model at any
+setting. It is also not a build: it writes what the database already holds, and the Engine
+warns that the document will not be kept current, since writing it does not set
+`database.nost` and no command sets it.
 
 ## What `required` accepts as failure
 

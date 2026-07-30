@@ -104,10 +104,27 @@ case "$action" in
     target=${1:-.}
     echo "$(configure "$target")$NOSTDB build $(project "$target")"
     ;;
-  build-nost)
-    # The same, materializing the canonical `.nost` afterwards.
+  export)
+    # Writes the canonical `.nost` from what is already in the database, and builds nothing.
+    #
+    # It used to be `build-nost`, which emitted `build && export` behind a flag on `/nostdb .`. Two things
+    # were wrong with that. A flag on a build reads as "this build now materializes", and it does not —
+    # `export` writes the document once and the Engine warns that nothing will keep it current, because
+    # `database.nost` stays false and no CLI command sets it. And somebody who only wanted the document had
+    # the whole tree re-analyzed to get it.
+    #
+    # No `configure` guard, unlike `build`. The Engine finds the nearest *configured* project itself and says
+    # so when there is none, and initializing a project as a side effect of asking for a document would
+    # configure a directory somebody only wanted to read out of.
+    #
+    # `--nost` is spelled here rather than left to the Engine's default, and that is the point of the
+    # surface's default rather than a duplication of it. The CLI requires the flag so a later representation
+    # cannot silently change what a bare `export` means; emitting it keeps that true no matter what the
+    # surface later spells, and a bare `export` never reaches the Engine.
+    #
+    # Positional, because every path-taking command except `build` and `plan` takes one — see `project`.
     target=${1:-.}
-    echo "$(configure "$target")$NOSTDB build $(project "$target") && $NOSTDB export --nost $target"
+    echo "$NOSTDB export --nost $target"
     ;;
   sync)
     echo "$NOSTDB sync ${1:-.}"

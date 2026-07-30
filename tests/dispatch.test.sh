@@ -30,7 +30,7 @@ check() {
 # `help` is deliberately absent: it runs nothing, because `/nostdb help` describes the Skill and the
 # Skill is what knows. An action is not required to be one CLI command or to be named after one — what
 # is required is that whatever work happens is the CLI's.
-for action in build build-nost sync summary view; do
+for action in build export sync summary view; do
   got=$(NOSTDB=ENGINE "$dispatch" "$action" 2>/dev/null || echo "REFUSED")
   case "$got" in
     *ENGINE\ *) echo "ok   $action invokes the CLI" ;;
@@ -41,10 +41,13 @@ done
 # The resolved command is substituted everywhere it is needed, not prefixed once.
 #
 # A prefix cannot work: a project-local resolution is a path, the no-install route is four words, and
-# a chained mapping names the command more than once. `build-nost` names it three times.
-got=$(NOSTDB="npx --yes --package=nostdb nostdb" "$dispatch" build-nost . 2>/dev/null)
+# a chained mapping names the command more than once. `summary` names it five times.
+#
+# It used to be `build-nost`, which chained three. That action is now `export` and emits one command, so a
+# check anchored on it would have kept passing while testing nothing about substitution.
+got=$(NOSTDB="npx --yes --package=nostdb nostdb" "$dispatch" summary . 2>/dev/null)
 check "every occurrence is substituted, not just the first" \
-  "$(printf '%s\n' "$got" | grep -o 'npx --yes --package=nostdb nostdb' | wc -l | tr -d ' ')" "3"
+  "$(printf '%s\n' "$got" | grep -o 'npx --yes --package=nostdb nostdb' | wc -l | tr -d ' ')" "5"
 
 # A bare `/nostdb .` is what `build` serves. It is the whole of it: configure if needed, then analyze
 # the tree and write the database.
@@ -67,11 +70,22 @@ case "$got" in
   *) echo "FAIL init is unguarded: [$got]" >&2; failures=$((failures + 1)) ;;
 esac
 
-# `--nost` materializes the canonical document as well.
-got=$(NOSTDB=ENGINE "$dispatch" build-nost . 2>/dev/null)
+# `/nostdb export .` writes the canonical document, and builds nothing.
+#
+# The surface says `export` and the command says `--nost`, which is not a mismatch: `nost` is the surface's
+# default and the flag is spelled at the boundary, because the CLI requires it so a later representation
+# cannot silently change what a bare `export` means. So this asserts the flag is present, and the next check
+# asserts nothing else is.
+got=$(NOSTDB=ENGINE "$dispatch" export . 2>/dev/null)
+check "export emits exactly the Engine's export, with the representation spelled" \
+  "$got" "ENGINE export --nost ."
+
+# No build and no guard. It used to emit `build && export` behind a flag on `/nostdb .`, so writing the
+# document from an already-built database re-analyzed the whole tree — and initializing a project as a side
+# effect of asking to read one out is not something anybody asked for.
 case "$got" in
-  *"ENGINE export --nost ."*) echo "ok   --nost materializes the .nost" ;;
-  *) echo "FAIL build-nost does not export: [$got]" >&2; failures=$((failures + 1)) ;;
+  *build* | *init*) echo "FAIL export builds or initializes: [$got]" >&2; failures=$((failures + 1)) ;;
+  *) echo "ok   export neither builds nor initializes" ;;
 esac
 
 # `/nostdb help` needs no Engine. It used to map to `nostdb help`, so reading a help message required
@@ -99,6 +113,33 @@ for expected in "/nostdb query --cypher" "/nostdb view ." "/nostdb plugin add" "
   esac
 done
 echo "ok   and it names every action a caller can ask for"
+
+# And every value an option accepts, not just the ones an invocation line happens to show.
+#
+# `--scan=default` was written in prose below the fence and appeared in no help output a reader would scan,
+# because the invocation lines show `analyzer` and `ai` and neither says they are two of three. A value nobody
+# can see is not documented, so each one is pinned here by name.
+for expected in "--scan=default|ai" "--cypher '<statement>'" "--sync"; do
+  case "$surface" in
+    *"$expected"*) : ;;
+    *) echo "FAIL the surface omits what $expected accepts" >&2; failures=$((failures + 1)) ;;
+  esac
+done
+echo "ok   and says what every option accepts"
+
+# And names nothing the dispatcher does not serve. `--format` is the live case: it is the reserved spelling for
+# a second export representation, the Engine has one, and a help screen naming a flag that does nothing
+# describes a Skill that does not exist.
+#
+# The whole surface is checked rather than the options block, because it does not matter where the name
+# appears. This caught the sentence that explained the reservation — correct as rationale, and reaching a
+# reader who asked what the Skill can do, since `help` extracts the entire section.
+case "$surface" in
+  *"--format"*)
+    echo "FAIL the surface names --format, which nothing serves" >&2
+    failures=$((failures + 1)) ;;
+  *) echo "ok   and names no option the dispatcher does not serve" ;;
+esac
 
 # And it stops at the surface.
 #
@@ -237,8 +278,8 @@ check "an unknown action exits 2" "$r" "2"
 # SKILL.md carries the map, because SKILL.md is the file an agent actually reads. It used to
 # live here, in a case statement, which meant the one place the table's vocabulary and the
 # dispatcher's met was a test no running agent ever opens: an agent could read the table,
-# learn that `/nostdb . --ai=off` exists, and have no way to discover that the action serving
-# it is called `build`.
+# learn that `/nostdb . --scan=ai` exists, and have no way to discover that the action serving
+# it is called `enrich`.
 #
 # So the map is shipped and this checks it, rather than the reverse. Each row names an action,
 # the `/nostdb` invocation it serves, and its declared AI usage.
@@ -260,10 +301,10 @@ map=$(
 
 # The dispatcher maps exactly the actions SKILL.md declares as runnable without a model.
 #
-# Stated as a set rather than counted, because counting got it wrong: `build-nost` is the
-# AI-free path of an *optional* row, and `optional` means precisely that the action completes
-# without a model. So the dispatcher legitimately maps more than the `none` rows, and an
-# arithmetic check on prose could not express that.
+# Stated as a set rather than counted, because counting got it wrong: `build` is the AI-free
+# path of an *optional* row, and `optional` means precisely that the action completes without
+# a model. So the dispatcher legitimately maps more than the `none` rows, and an arithmetic
+# check on prose could not express that.
 ai_free=$(printf '%s\n' "$map" | awk -F'\t' '$3 != "required" { printf "%s ", $1 }')
 
 # Which actions the dispatcher maps is decided by *running* it, not by reading its case labels. `help`
@@ -317,7 +358,7 @@ if command -v nostdb >/dev/null 2>&1; then
   work=$(mktemp -d)
   # Configured first, so the guard is exercised in the state a second run is in.
   nostdb init "$work" >/dev/null 2>&1 || true
-  for action in build build-nost sync summary view; do
+  for action in build export sync summary view; do
     emitted=$(NOSTDB=nostdb "$dispatch" "$action" "$work" 2>/dev/null)
     out=$(sh -c "$emitted" 2>&1 || true)
     case "$out" in
