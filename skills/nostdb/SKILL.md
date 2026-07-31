@@ -46,7 +46,7 @@ database in order to read a help message is the wrong order of operations.
 /nostdb export .                      write the graph as canonical .nost
 /nostdb summary .                     report how much is in the database, and of what kinds
 /nostdb query --cypher '...'          run a statement you wrote
-/nostdb query "..."                   ask in English; the generated Cypher is shown
+/nostdb query '...'                   a natural-language query; the generated Cypher is shown
 /nostdb view .                        render the graph through a viewer plugin
 /nostdb preset                        list the schema presets this Skill ships
 /nostdb preset jpa                    propose records for a preset, and apply them
@@ -243,7 +243,7 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | `view` | `/nostdb view .` | none |
 | `plugin-add` | `/nostdb plugin add '...'` | none |
 | `preset-check` | `/nostdb preset` | none |
-| `query-natural` | `/nostdb query "..."` | required |
+| `query-natural` | `/nostdb query '...'` | required |
 | `enrich` | `/nostdb . --scan=ai` | required |
 | `preset-apply` | `/nostdb preset jpa` | required |
 
@@ -323,7 +323,7 @@ never computes an answer itself: two implementations of one question is two answ
 user gets would depend on the surface they happened to reach for.
 
 A **`required` action with no model fails.** It does not fall back to a deterministic
-approximation and report success: a caller who asked a question in English and got an answer
+approximation and report success: a caller who asked a question in natural language and got an answer
 derived some other way has been told something untrue about where it came from.
 
 What each declaration obliges is written out in [`ACTIONS.md`](ACTIONS.md).

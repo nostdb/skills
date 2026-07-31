@@ -16,7 +16,7 @@ is also how `--scan` means something: it selects over this column rather than ho
 | `/nostdb convert .nostdb/root.nostdb root.nost` | none | converts between `.nost` and `.nostdb`, in whichever direction the extensions name; refuses an existing output unless `--replace` is passed |
 | `/nostdb summary .` | none | reports the totals, the kinds present, and whether the container is sound |
 | `/nostdb query --cypher '...'` | none | runs a statement the caller wrote |
-| `/nostdb query "..."` | required | generates openCypher from a question |
+| `/nostdb query '...'` | required | generates openCypher from a natural-language question |
 | `/nostdb view .` | none | opens a viewer plugin |
 | `/nostdb plugin add '...'` | none | installs a plugin through the CLI |
 | `/nostdb preset` | none | lists the schema presets, and has the Engine validate one |
@@ -96,6 +96,6 @@ warns that the document will not be kept current, since writing it does not set
 ## What `required` accepts as failure
 
 A `required` action with no model available fails. It does not fall back to a deterministic
-approximation and report success, because a caller that asked a question in English and got
+approximation and report success, because a caller that asked a question in natural language and got
 an answer derived some other way has been told something untrue about where the answer came
 from.
