@@ -218,6 +218,15 @@ if [ -x tests/budget-check.test.sh ]; then
   echo "budget: every check passed"
 fi
 
+if [ -x tests/springboot-preset.test.sh ]; then
+  tests/springboot-preset.test.sh >/dev/null || {
+    echo "the Spring Boot preset tests failed" >&2
+    tests/springboot-preset.test.sh >&2
+    exit 1
+  }
+  echo "springboot preset: every check passed"
+fi
+
 if [ -x tests/nl-gate.test.sh ]; then
   tests/nl-gate.test.sh >/dev/null || {
     echo "the natural-language gate tests failed" >&2

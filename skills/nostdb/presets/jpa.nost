@@ -20,7 +20,7 @@
 // `Schema` is deliberately absent as a name. NostDB already has schemas — this file is made of them — and a
 // label called `Schema` would make `MATCH (s:Schema)` mean two things at once.
 
-@nost 2
+@nost 3
 
 // A persisted type. `@Entity` in the source; the class is the record, and this says what it maps to.
 //

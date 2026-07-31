@@ -1,0 +1,401 @@
+// The Spring Boot vocabulary: what a service's own facts are called once they are in the graph.
+//
+// This file is a `.nost` document and nothing else, so the Engine validates it — `nostdb check` reads it the
+// same way it reads any other. This Skill holds no validator of its own, and a malformed preset fails before
+// it is ever offered to a model.
+//
+// # What it is for
+//
+// `nostdb-spec/docs/NOST_LANGUAGE.md` accepts a consequence rather than solving it: a record may name a
+// schema that was never declared, so a misspelled label is indistinguishable from an intentional bare one.
+// A preset fixes the vocabulary on the producing side, which is the only side where the two can be told
+// apart. Without one, a model proposing `Job` today and `ScheduledTask` tomorrow produces two unvalidated
+// labels and no error, and the graph holds both readings for ever.
+//
+// # What it is not
+//
+// It is not an analyzer. Nothing here reads `@Scheduled`; these are the names a *proposal* must use once
+// something else has read it, and the Engine is what checks the proposal against them.
+//
+// # What it does not cover
+//
+// Persistence **mappings** — `@Entity`, `@Column`, and the repository interfaces over them — belong to the
+// `jpa` preset the `nostdb` Skill ships. Two presets declaring one label would leave whichever was applied
+// last standing, and the loss would show only as a warning.
+//
+// The division is by source rather than by subject. `jpa` describes what a class says it maps to; this file
+// describes the store that is actually there, which comes from DDL, migrations, and configuration. Where the
+// two meet, they meet on a name: `Entity.table` and `Table.name` hold the same string, and a query joins them
+// on it. No edge is declared between the two vocabularies, because an edge into another preset's labels would
+// warn on every project that installed only one of them.
+//
+// # Three names this file may not use
+//
+// - **a label a build already writes.** `Endpoint`, `File`, `Directory`, `Module`, `Method`, `Field`, and the
+//   rest are declared by every build. A schema is unowned, so a preset redeclaring one is replaced on the
+//   next build — the preset's version vanishes and the only sign is a warning. So the route record is not
+//   redeclared here: `Endpoint` is *referenced* in an endpoint constraint, and this file's records hang off
+//   it. Settings hang off `File` for the same reason, rather than off a `ConfigFile` that would put a second
+//   record on a path the scan already recorded;
+// - **a label the `jpa` preset declares**, which is why a physical column is `TableColumn`;
+// - **a builtin relation name.** `HANDLED_BY` runs from `Endpoint` to `Method` in every build, so a schema
+//   for it here would raise a violation on the Engine's own edges. A job reaches its declaration through
+//   `RUNS`.
+//
+// # One value shape a proposal cannot carry yet
+//
+// Five fields here are lists: `Request.path_variables`, `query_parameters`, and `headers`, `Table.primary_key`,
+// and `Collection.indexes`. The `.nost` language has list properties, storage holds them, and a schema may
+// declare `string[]` — `nostdb check` accepts this file — but a **change set** cannot carry one. Its property
+// reader takes a boolean, a string, and a number, and refuses an array with `unsupported property value`.
+//
+// So those five are settable by hand-writing `.nost` and not by the route a proposal takes. They are declared
+// as lists anyway, because a composite primary key *is* a list and flattening it into a comma-joined string
+// would put a format in the graph that every reader then has to parse. `SKILL.md` says to leave them out of a
+// proposal, which is the same treatment the relations below get and for the same reason.
+//
+// `Schema` is deliberately absent as a name. NostDB already has schemas — this file is made of them — and a
+// label called `Schema` would make `MATCH (s:Schema)` mean two things at once.
+
+@nost 3
+
+// ---------------------------------------------------------------------------
+// The web contract
+//
+// A build already records the route: `Endpoint` carries its method, path, and handler, drawn by the framework
+// analyzer from the mapping annotations. What no analyzer reads is the shape on either side of it, which is
+// what these three describe.
+// ---------------------------------------------------------------------------
+
+// What a route accepts.
+//
+// One record per distinct payload, named so two routes sharing a body type share one reading of it.
+//
+// Every field but the name is optional because a route may accept nothing at all — a bare `GET /health` takes
+// no body, no variables, and no parameters — and because absent means "not written down" rather than "none".
+// `media_type` is absent unless the source states one: Spring supplies a default, and recording that default
+// here would be reporting a decision the source did not make.
+schema Request {
+  name: string,
+  media_type?: string,
+  body_type?: string,
+  path_variables?: string[],
+  query_parameters?: string[],
+  headers?: string[]
+}
+
+// What a route returns.
+//
+// A route may declare several — a success and a failure shape — so this is a record rather than fields on the
+// endpoint, and `name` is what tells them apart.
+//
+// `status` is absent unless the source states one. Spring answers 200 when nothing said otherwise, and
+// writing 200 into a record no annotation asked for would put a claim in the graph that nobody made.
+schema Response {
+  name: string,
+  status?: integer,
+  media_type?: string,
+  body_type?: string
+}
+
+// A constraint the source states, wherever it states it.
+//
+// One record with a `kind` rather than a label per kind, for the reason the `jpa` preset gives about
+// cardinality: a query asking what constrains a route should not have to name every kind of constraint to
+// avoid missing one. `kind` is a free string — `validation`, `database`, `authorization`, `business` — and not
+// a closed list, because a project's own constraint vocabulary is not this file's to bound.
+//
+// `expression` holds the constraint **as written**, unevaluated: `min=1,max=64`, a SQL `CHECK` body, or a
+// property placeholder. Evaluating one would mean resolving configuration this graph has not read, which is
+// the same reason a framework analyzer records `${api.base}` rather than substituting it.
+//
+// `applies_to` names the field or column the rule is about. It earns its place because a rule usually applies
+// to one member of a record that has no record of its own: a `@Size` on one field of a request body, where
+// the body is a single `Request`. The edge says which record is constrained; this says which part of it.
+schema Rule {
+  name: string,
+  kind: string,
+  expression?: string,
+  message?: string,
+  applies_to?: string
+}
+
+// ---------------------------------------------------------------------------
+// The data store
+// ---------------------------------------------------------------------------
+
+// A configured connection to a data store.
+//
+// **There is deliberately no `url` field.** A JDBC or R2DBC URL routinely carries a user and a password, and
+// a preset with a field for one invites recording it — the root contract forbids a credential reaching a
+// graph file, and a field that cannot hold one enforces that better than a rule asking nobody to. The parts
+// that matter for a graph are here separately, and none of them can carry a secret.
+//
+// `kind` is a free string — `jdbc`, `r2dbc`, `mongo`, `redis`, `elasticsearch` — because storage here is
+// meant to be neutral about which stores exist, the same way the Engine is neutral about which languages do.
+schema Datasource {
+  name: string,
+  kind: string,
+  driver?: string,
+  host?: string,
+  port?: integer,
+  database?: string,
+  schema_name?: string
+}
+
+// A relational table.
+//
+// The table that is actually there, read from DDL or a migration rather than from a mapping annotation. What
+// a class says it maps to is `Entity.table` in the `jpa` preset, and the two meet on this record's `name`.
+//
+// `primary_key` is a list because a composite key is one, and absent when the source did not say — a table
+// with no stated key is a fact worth keeping as absent rather than as an empty list, which would claim the
+// source said "none".
+schema Table {
+  name: string,
+  schema_name?: string,
+  primary_key?: string[]
+}
+
+// One column of a table.
+//
+// `TableColumn` rather than `Column`, which the `jpa` preset declares for an ORM field mapping. The two are
+// different facts from different sources — one is what the store has, the other is what a class says it binds
+// to — and one name for both would lose whichever preset was applied first.
+schema TableColumn {
+  name: string,
+  data_type?: string,
+  nullable?: boolean,
+  default_value?: string
+}
+
+// A document collection.
+//
+// Separate from `Table` rather than a `Table` with a `kind`, because the two carry different facts: a
+// collection has indexes and no column list, and a query over one is not a query over the other.
+schema Collection {
+  name: string,
+  database?: string,
+  indexes?: string[]
+}
+
+// ---------------------------------------------------------------------------
+// Work the framework invokes
+//
+// A route is reached from outside the program. These are reached by the framework itself, which is why they
+// are records of their own: nothing in the call graph points at them, so a reader looking only at `CALLS`
+// would conclude they are dead.
+// ---------------------------------------------------------------------------
+
+// A unit of work nothing calls.
+//
+// `kind` says how the framework reaches it — `scheduled`, `async`, `listener`, `startup`, `shutdown` — and
+// `source` names the topic, queue, or event it reads when it is a listener, absent when there is nothing to
+// name.
+//
+// `handler` is the declaration's name as written, and the `RUNS` edge is the resolved link to it. Both,
+// because that is what a build already does for a route: `Endpoint` carries a `handler` string and draws
+// `HANDLED_BY` beside it, so a name that resolved to nothing is still recorded rather than lost.
+schema Job {
+  name: string,
+  kind: string,
+  source?: string,
+  handler?: string
+}
+
+// When a scheduled job runs.
+//
+// A record rather than fields on `Job`, because `@Scheduled` is repeatable: one method can carry several
+// triggers, and fields would hold only the last one read.
+//
+// `expression` is as written, which is often a property placeholder rather than a cron string.
+// `initial_delay` is a string for the same reason — it may be a placeholder or a duration, and parsing it
+// into a number would discard the spelling the source chose.
+schema Schedule {
+  kind: string,
+  expression: string,
+  zone?: string,
+  initial_delay?: string
+}
+
+// ---------------------------------------------------------------------------
+// Configuration and build
+// ---------------------------------------------------------------------------
+
+// One configured key.
+//
+// Hung off the builtin `File` record for the document that declares it — see `DECLARES_SETTING`. A
+// `ConfigFile` of its own would put a second record on a path the scan already recorded, and "which file is
+// application.yaml" would return two.
+//
+// **`secret` means the value is not here.** A settings file holds tokens and passwords beside ports and
+// timeouts, and the root contract forbids either reaching a graph file. So the flag does not classify the
+// setting as sensitive and leave the value beside it: it says the value was deliberately withheld, which is
+// what lets a reader tell that from "the source did not set one".
+//
+// `profile` is the Spring profile the value belongs to, absent for the default document.
+schema Setting {
+  key: string,
+  value?: string,
+  secret?: boolean,
+  profile?: string
+}
+
+// A declared library dependency.
+//
+// `version` is absent when the build file does not state one — a platform, a BOM, or a version catalog
+// supplies it — and absent says exactly that rather than guessing what the build would resolve.
+//
+// `catalog_key` holds the alias when the version came from a catalog, as written: `libs.spring.boot.web`.
+// Recording the alias rather than resolving it keeps this a fact about the build file, and the catalog's own
+// entries are `Setting` records under the `File` that declares them.
+schema Dependency {
+  artifact: string,
+  group?: string,
+  version?: string,
+  scope?: string,
+  catalog_key?: string
+}
+
+// One module of a build.
+//
+// `BuildModule` rather than `Module`, which a build already writes for a module of the analyzed programming
+// language. These are different things: one is a Kotlin or Java namespace, the other is a unit Gradle or
+// Maven builds.
+//
+// This is what answers whether a tree holds one project or several. A repository with three of these is a
+// multi-module build, and `INCLUDES_MODULE` says which contains which.
+schema BuildModule {
+  name: string,
+  kind: string,
+  path?: string,
+  packaging?: string
+}
+
+// ---------------------------------------------------------------------------
+// The relations
+//
+// Where a relation runs between one pair of shapes it is constrained, so the Engine refuses an edge between
+// the wrong two. Where it genuinely runs between several it is declared without endpoints, which is what
+// `nostdb-core` does for `CONTAINS` and for the same reason: one constraint cannot describe five shapes, and
+// declaring one would raise a violation on every edge of the others.
+//
+// # Five of these cannot be proposed yet, and the reason is not in this file
+//
+// A change set names an edge's endpoints by opaque local identifier — `{"local": "n_…"}` — and **nothing
+// exposes the identifier of a record a build wrote**. No query function returns one, and the reserved `id`
+// property is empty on a record the Engine minted an identifier for. So a proposal can create records and
+// join them to each other, which is verified, and cannot join them to `Endpoint`, `File`, `Method`, or
+// `Directory`.
+//
+// The five are declared anyway, and that is a considered choice rather than an oversight. A preset exists to
+// fix a name before a model invents one; leaving them out until the route exists guarantees that whatever
+// arrives then is called something else, and a graph built today could never be joined to one built
+// afterwards. `SKILL.md` is what must not ask a model to emit them, and it does not.
+//
+// Each is marked below. What is proposable today is every relation among this file's own records.
+// ---------------------------------------------------------------------------
+
+// A route to what it accepts. `Endpoint` is the record a build already writes.
+//
+// **Not proposable yet**: it reaches a record a build wrote.
+schema ACCEPTS(Endpoint -> Request) {
+}
+
+// A route to what it returns.
+//
+// **Not proposable yet**: it reaches a record a build wrote.
+schema RETURNS(Endpoint -> Response) {
+}
+
+// Anything constrained, to the rule constraining it.
+//
+// No endpoint constraint: a rule can constrain a route, a request payload, a table, or one of its columns,
+// and one pair of shapes cannot say that. Declared anyway rather than left out, because the point of a preset
+// is fixing the name — a proposal writing `VALIDATED_BY` would produce a second relation type for one fact.
+//
+// Proposable between this file's own records, which is where most rules sit: a rule over a request payload or
+// a column. One reaching `Endpoint` is subject to the limit above.
+schema CONSTRAINED_BY {
+}
+
+// A route or a job, to the table or collection it reads or writes.
+//
+// No endpoint constraint, for the reason above: four shapes reach two.
+//
+// `mode` rather than `READS` and `WRITES` as separate relations, following the `jpa` preset's reasoning about
+// cardinality: a query asking what touches a table should not have to name every mode to avoid missing one.
+// `read`, `write`, or `read_write`.
+//
+// Proposable from `Job`, which this file owns. One from `Endpoint` is subject to the limit above.
+schema ACCESSES {
+  mode: string
+}
+
+// A job to a trigger that fires it. Several, when the source declares several.
+schema TRIGGERED_BY(Job -> Schedule) {
+}
+
+// A job to the declaration the framework invokes.
+//
+// `RUNS` rather than `HANDLED_BY`, which a build already uses from `Endpoint` to `Method`. Declaring a schema
+// for a builtin relation would constrain the Engine's own edges to this file's shape and warn on every one of
+// them.
+//
+// **Not proposable yet**: it reaches a record a build wrote. Until it is, `Job.handler` carries the name and a
+// reader joins on it — which is why that property is there rather than replaced by this edge.
+schema RUNS(Job -> Method) {
+}
+
+// A data store to a table in it.
+schema HAS_TABLE(Datasource -> Table) {
+}
+
+// A data store to a collection in it.
+schema HAS_COLLECTION(Datasource -> Collection) {
+}
+
+// A table to one of its columns.
+schema HAS_TABLE_COLUMN(Table -> TableColumn) {
+}
+
+// The document that declares a setting, to the setting.
+//
+// From the builtin `File`, so a settings document is the record the scan already made of it. This is what
+// makes `application.yaml`, `libs.versions.toml`, `gradle.properties`, and a `build.gradle.kts` all reachable
+// as themselves: each is a `File` the scan recorded, and what was read out of it hangs here.
+//
+// **Not proposable yet**: it reaches a record a build wrote. A `Setting` therefore stands on its own today,
+// and `Setting.profile` is what distinguishes two documents' readings of one key.
+schema DECLARES_SETTING(File -> Setting) {
+}
+
+// A setting to the data store it configures.
+//
+// Constrained to one shape deliberately, although a setting configures more than a data store. The others
+// have no record here to point at — a timeout or a log level configures the framework, which this vocabulary
+// does not describe — and a relation with no second shape to reach is better left narrow than widened for a
+// target that does not exist.
+schema CONFIGURES(Setting -> Datasource) {
+}
+
+// A build module to a library it declares.
+schema DECLARES_DEPENDENCY(BuildModule -> Dependency) {
+}
+
+// A build module to a module it contains.
+//
+// The relation that makes a multi-module build readable as one. A root module with three of these is the
+// answer to whether a tree holds one project or several.
+schema INCLUDES_MODULE(BuildModule -> BuildModule) {
+}
+
+// A build module to the directory it is rooted at.
+//
+// To the builtin `Directory` the scan recorded, which is what lets a reader go from a file to the module that
+// builds it without matching path prefixes by hand.
+//
+// **Not proposable yet**: it reaches a record a build wrote. `BuildModule.path` carries the directory as a
+// string meanwhile.
+schema ROOTED_AT(BuildModule -> Directory) {
+}

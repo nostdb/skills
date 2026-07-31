@@ -22,13 +22,24 @@ your project `AGENTS.md`.
 
 ```text
 skills/
-└── nostdb/
+├── nostdb/
+│   ├── SKILL.md         # the definition an agent reads
+│   ├── ACTIONS.md       # every action and what it declares about AI usage
+│   ├── RESOLUTION.md    # which `nostdb` a Skill uses, and how it decides
+│   ├── ENRICHMENT.md    # what is sent to a model, and what must be true first
+│   ├── presets/         # vocabularies a proposal uses, and the Engine validates
+│   └── scripts/         # the deterministic parts: resolution, dispatch, and the two gates
+└── nostdb-analyzer-springboot/
     ├── SKILL.md         # the definition an agent reads
-    ├── ACTIONS.md       # every action and what it declares about AI usage
-    ├── RESOLUTION.md    # which `nostdb` a Skill uses, and how it decides
-    ├── ENRICHMENT.md    # what is sent to a model, and what must be true first
-    └── scripts/         # the deterministic parts: resolution, dispatch, and the two gates
+    ├── presets/         # the Spring Boot vocabulary, and what it covers
+    └── scripts/         # listing the vocabulary, which needs no Engine
 ```
+
+The second holds a vocabulary and no command surface. It names what a Spring Boot service states about
+itself — the shapes on either side of a route, the constraints over them, the store that is there, the work
+the framework invokes, and what the build declares — so a model reading one proposes the same names twice.
+It runs the Engine through the first Skill rather than reaching into its folder, because a folder is what an
+installer copies.
 
 `skills/<name>/SKILL.md` is the path an installer discovers, and the skill folder is the unit
 it copies. Everything a definition references therefore lives inside its own folder — a

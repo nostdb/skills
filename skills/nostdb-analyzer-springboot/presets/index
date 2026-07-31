@@ -1,0 +1,27 @@
+# Which preset covers which annotations, and what each one is for.
+#
+# Pipe separated rather than JSON, because the script that reads it is `/bin/sh` and this repository ships no
+# `jq`. A JSON index would mean either a dependency an install cannot assume or a parser written in shell, and
+# a parser in a Skill is the thing this whole boundary exists to avoid. Four fields, no nesting.
+#
+# name | document | annotations it covers | what it describes
+#
+# The annotation names are what a build reports as **uninterpreted**. That is how a preset is chosen: the
+# Engine says which annotations it saw and did not read, and a name in this column means a preset exists for
+# them. Matching on the Engine's own report rather than on a framework name is deliberate — naming the
+# framework would need a list of frameworks a build knows of and cannot read, which the root PRD's section 4
+# forbids by another route.
+#
+# Two groups are deliberately absent from the column.
+#
+# The mapping annotations a framework analyzer already interprets — `@RestController`, `@GetMapping`, and the
+# rest — are never reported uninterpreted, so listing them would claim a preset for a question nobody asks.
+#
+# `@Entity`, `@Table`, `@Column`, and the other persistence mappings belong to the `jpa` preset the `nostdb`
+# Skill ships. Two presets claiming one annotation would make the choice between them arbitrary.
+#
+# Dependency injection is absent for a third reason: this preset declares no `Bean` and no `Component`, so
+# `@Service`, `@Autowired`, and `@Configuration` have no vocabulary here to offer. Claiming them would point a
+# model at names that do not exist.
+
+springboot | springboot.nost | RequestBody,ResponseBody,ResponseStatus,PathVariable,RequestParam,RequestHeader,CookieValue,RequestPart,ModelAttribute,CrossOrigin,ExceptionHandler,ControllerAdvice,RestControllerAdvice,Valid,Validated,NotNull,NotBlank,NotEmpty,Size,Min,Max,Pattern,Email,Positive,PositiveOrZero,Negative,NegativeOrZero,Past,Future,AssertTrue,AssertFalse,DecimalMin,DecimalMax,Digits,PreAuthorize,PostAuthorize,Secured,RolesAllowed,Scheduled,Schedules,Async,EnableScheduling,EnableAsync,EventListener,TransactionalEventListener,KafkaListener,JmsListener,RabbitListener,SqsListener,StreamListener,Transactional,Query,Modifying,Param,Document,Indexed,CompoundIndex,EnableJpaRepositories,EnableMongoRepositories,ConfigurationProperties,EnableConfigurationProperties,Value,PropertySource,Profile,ConstructorBinding | a Spring Boot service's own facts: the shapes on either side of a route, the constraints stated over them, the store that is actually there, the work the framework invokes rather than a caller, and what the build declares
