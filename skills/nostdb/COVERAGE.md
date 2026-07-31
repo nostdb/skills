@@ -45,7 +45,7 @@ That is why step 3 works from two lists rather than one: annotation names, and u
 For an annotation, ask the preset index:
 
 ```bash
-scripts/presets.sh for NotBlank      # this Skill's presets
+scripts/presets.py for NotBlank      # this Skill's presets
 ```
 
 For a Skill outside this one, the agent is what knows which are installed — a Skill cannot read another

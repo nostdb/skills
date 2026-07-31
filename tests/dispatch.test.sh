@@ -7,7 +7,7 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 skill="$here/../skills/nostdb"
-dispatch="$skill/scripts/dispatch.sh"
+dispatch="$skill/scripts/dispatch.py"
 table="$skill/ACTIONS.md"
 definition="$skill/SKILL.md"
 
@@ -127,16 +127,16 @@ check "sync is not an action this Skill maps" "$r" "2"
 check "help is not a command the dispatcher maps" "$r" "1"
 got=$("$dispatch" help 2>&1 >/dev/null || true)
 case "$got" in
-  *help.sh*) echo "ok   and it points at the script that answers it" ;;
-  *) echo "FAIL help does not name help.sh: [$got]" >&2; failures=$((failures + 1)) ;;
+  *help.py*) echo "ok   and it points at the script that answers it" ;;
+  *) echo "FAIL help does not name help.py: [$got]" >&2; failures=$((failures + 1)) ;;
 esac
 
 # The help text comes out of SKILL.md rather than being a second copy. Two copies of one surface drift,
 # and the one that drifts is the one nobody reads while editing the other.
-surface=$("$skill/scripts/help.sh" 2>/dev/null || echo FAILED)
+surface=$("$skill/scripts/help.py" 2>/dev/null || echo FAILED)
 case "$surface" in
-  *"/nostdb ."*) echo "ok   help.sh prints the surface with no Engine" ;;
-  *) echo "FAIL help.sh printed [$surface]" >&2; failures=$((failures + 1)) ;;
+  *"/nostdb ."*) echo "ok   help.py prints the surface with no Engine" ;;
+  *) echo "FAIL help.py printed [$surface]" >&2; failures=$((failures + 1)) ;;
 esac
 for expected in "/nostdb query --cypher" "/nostdb view ." "/nostdb plugin add" "/nostdb summary" "/nostdb help"; do
   case "$surface" in
@@ -180,7 +180,7 @@ esac
 # terminator of `^## [^S]` went unnoticed: it cannot stop at `## Step 1`, the heading that follows
 # Surface, and `help` printed Engine resolution and the dispatch table as well. Somebody asking what
 # the Skill does got the instructions written for the agent.
-for internal in "## Step 1" "## Step 2" "resolve-engine.sh" "## Natural language"; do
+for internal in "## Step 1" "## Step 2" "resolve-engine.py" "## Natural language"; do
   case "$surface" in
     *"$internal"*)
       echo "FAIL the surface runs past its section into [$internal]" >&2
@@ -197,11 +197,11 @@ probe="zzz-extraction-probe-$$"
 cp "$skill/SKILL.md" "$skill/SKILL.md.orig"
 sed -i.bak "s|^/nostdb help .*|/nostdb help                       $probe|" "$skill/SKILL.md"
 rm -f "$skill/SKILL.md.bak"
-moved=$("$skill/scripts/help.sh" 2>/dev/null || echo FAILED)
+moved=$("$skill/scripts/help.py" 2>/dev/null || echo FAILED)
 mv "$skill/SKILL.md.orig" "$skill/SKILL.md"
 case "$moved" in
   *"$probe"*) echo "ok   the text is read from SKILL.md, not copied into the script" ;;
-  *) echo "FAIL help.sh did not follow an edit to SKILL.md" >&2; failures=$((failures + 1)) ;;
+  *) echo "FAIL help.py did not follow an edit to SKILL.md" >&2; failures=$((failures + 1)) ;;
 esac
 
 # `/nostdb summary` asks the Engine every number it reports.
@@ -340,11 +340,14 @@ map=$(
 # check on prose could not express that.
 ai_free=$(printf '%s\n' "$map" | awk -F'\t' '$3 != "required" { printf "%s ", $1 }')
 
-# Which actions the dispatcher maps is decided by *running* it, not by reading its case labels. `help`
-# is a label and maps nothing, so a textual scan counted an action that emits no command — and an
-# action is no longer required to emit one, which is exactly why the check cannot be textual any more.
+# Which actions the dispatcher maps is decided by *running* each one, not by reading what it does with it.
+# `help` is an action that maps nothing, so a textual scan counted one that emits no command — and an action is
+# no longer required to emit one, which is exactly why the check cannot be textual any more.
+#
+# The candidates come from the dispatcher's own `ACTIONS`, which it uses to refuse an unknown action before any
+# branch is reached. That replaced a grep for `case` labels, which had no equivalent once this was Python.
 labels=""
-for label in $(grep -oE '^  [a-z-]+\)$' "$dispatch" | tr -d ' )'); do
+for label in $(sed -n '/^ACTIONS = (/,/^)/p' "$dispatch" | grep -oE '"[a-z-]+"' | tr -d '\"'); do
   # Two arguments, not one. `convert` takes an input and an output and refuses with fewer, so probing with
   # a single path reported it as an action the dispatcher does not map — while it does. Every other action
   # reads only what it needs, so a spare argument changes nothing for them.

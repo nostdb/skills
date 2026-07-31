@@ -6,7 +6,7 @@
 # properties in it.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-gate="$here/../skills/nostdb/scripts/nl-gate.sh"
+gate="$here/../skills/nostdb/scripts/nl-gate.py"
 
 failures=0
 expect() {

@@ -6,7 +6,7 @@
 # principle, so the decision to call it is the part a fixture can pin.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-check="$here/../skills/nostdb/scripts/budget-check.sh"
+check="$here/../skills/nostdb/scripts/budget-check.py"
 
 failures=0
 expect() {
@@ -97,6 +97,41 @@ if command -v "$engine" >/dev/null 2>&1; then
 else
   echo "skip no nostdb on the path; the real-plan checks did not run" >&2
 fi
+
+# Four plans that pin the reader to the document rather than to how the Engine happens to write it.
+#
+# The shell version removed every space and newline and matched a pattern anywhere in the result. Against the
+# output `nostdb plan --format json` produces today it worked — `max_input_tokens` is written first inside
+# `budget`, so the pattern's `[^}]*` matched nothing and found it.
+#
+# What it depended on was that ordering. JSON member order carries no meaning, so a refactor that moved one
+# line in the emitter would have changed the answer with no contract change and nothing to notice: the gate
+# would have read no limit and returned `ask` on a plan that should skip. Two of these four fail against the
+# shell version, and both are shapes the contract permits.
+#
+# A string value that contains the key, written after the real one. A plan carries paths and messages, and the
+# shell pattern led with `.*`, so the *last* occurrence won — a decoy before the real budget would have been
+# shadowed by it and proved nothing.
+expect "a key inside a string value is not read as the limit" \
+  '{"semantic_candidates":3,"estimated_input_tokens":{"low":10,"high":20},"budget":{"max_input_tokens":900000},"note":"set \"max_input_tokens\":1 to cap it"}' \
+  interactive proceed
+
+# An object between the outer key and the inner one: the nested pattern required them inside one `{}`.
+expect "a nested object before the key does not hide it" \
+  '{"semantic_candidates":3,"budget":{"on_exceeded":{"kind":"stop"},"max_input_tokens":10},"estimated_input_tokens":{"low":10,"high":900}}' \
+  interactive skip
+
+# Key order: a regex with a leading `.*` is greedy, so the last match won. `head -1` was there for that and
+# could not help.
+expect "the order the members are written in does not change the answer" \
+  '{"estimated_input_tokens":{"high":20,"low":10},"budget":{"max_input_tokens":900000},"semantic_candidates":3}' \
+  interactive proceed
+
+# A token figure that is not a whole number is a defect in whatever produced the plan, so it is unreadable
+# rather than truncated.
+expect "a fractional limit is not silently truncated" \
+  '{"semantic_candidates":3,"budget":{"max_input_tokens":1.5},"estimated_input_tokens":{"low":10,"high":20}}' \
+  interactive ask
 
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }
 echo "budget: every check passed"

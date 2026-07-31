@@ -6,7 +6,7 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 skill="$here/../skills/nostdb"
-presets="$skill/scripts/presets.sh"
+presets="$skill/scripts/presets.py"
 index="$skill/presets/index"
 
 failures=0

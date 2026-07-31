@@ -143,8 +143,8 @@ Do this before every action that touches a database, and pass the contract versi
 needs rather than an Engine version:
 
 ```bash
-scripts/resolve-engine.sh nost_language_version 2
-scripts/resolve-engine.sh query_subset_version 1
+scripts/resolve-engine.py nost_language_version 2
+scripts/resolve-engine.py query_subset_version 1
 ```
 
 Pass no version. **This Skill always resolves the newest release**, which is what `engine: latest` in its
@@ -199,7 +199,7 @@ click are a broken widget.
 Then set the answer and run the same command again:
 
 ```bash
-NOSTDB_SKILL_ENGINE_CHOICE=npx scripts/resolve-engine.sh nost_language_version 2
+NOSTDB_SKILL_ENGINE_CHOICE=npx scripts/resolve-engine.py nost_language_version 2
 ```
 
 The answer is stored for **this session**, so later calls need nothing — do not ask twice, and do not
@@ -226,12 +226,12 @@ The order and the compatibility check are explained in [`RESOLUTION.md`](RESOLUT
 
 ## Step 2: run the action
 
-`scripts/dispatch.sh <action> [arguments...]` prints the command an AI-free action invokes. Pass the
+`scripts/dispatch.py <action> [arguments...]` prints the command an AI-free action invokes. Pass the
 resolved command in `NOSTDB` and run exactly what it printed — it is runnable as it stands:
 
 ```bash
-NOSTDB=$(scripts/resolve-engine.sh nost_language_version 2)
-scripts/dispatch.sh build .        # prints the command
+NOSTDB=$(scripts/resolve-engine.py nost_language_version 2)
+scripts/dispatch.py build .        # prints the command
 ```
 
 The resolved command is **substituted, not prefixed**. Prefixing does not compose: a project-local
@@ -341,7 +341,7 @@ What each declaration obliges is written out in [`ACTIONS.md`](ACTIONS.md).
 ### Presets: a vocabulary the Engine validates
 
 A preset is the names a proposal uses **once something else has read the source**, written as a `.nost`
-document in [`presets/`](presets/jpa.nost). `scripts/presets.sh` lists them, says which one covers an
+document in [`presets/`](presets/jpa.nost). `scripts/presets.py` lists them, says which one covers an
 annotation, and needs no Engine — a preset is part of this Skill, and asking somebody to install a database
 to find out which presets exist is the wrong order of operations.
 
@@ -364,7 +364,7 @@ a model would make this Skill a second analyzer — reading annotations the Engi
 #### How a preset is chosen
 
 By the Engine's own report, not by naming a framework. A build reports the annotations it saw and did **not**
-interpret, and `scripts/presets.sh for Entity` answers which preset covers one. Naming the framework instead
+interpret, and `scripts/presets.py for Entity` answers which preset covers one. Naming the framework instead
 would need a list of frameworks this build knows of and cannot read, which is a closed allowlist by another
 route.
 
@@ -388,7 +388,7 @@ Generate a proposal — the kind of request this is, and the openCypher for it �
 hand it to the gate. The gate decides; the model does not.
 
 ```bash
-printf '{"kind":"read","cypher":"MATCH (n) RETURN n LIMIT 10"}' | scripts/nl-gate.sh
+printf '{"kind":"read","cypher":"MATCH (n) RETURN n LIMIT 10"}' | scripts/nl-gate.py
 ```
 
 | It prints | Do this |
@@ -416,7 +416,7 @@ than merely wrong.
 3. pipe that plan through the gate. Pass `non-interactive` when nobody can be asked:
 
 ```bash
-nostdb plan --format json --project . | scripts/budget-check.sh
+nostdb plan --format json --project . | scripts/budget-check.py
 ```
 
 `--project`, for the same reason `build` uses it. Release 0.1.0 refuses a positional path to `plan`, and

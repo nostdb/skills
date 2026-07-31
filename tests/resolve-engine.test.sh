@@ -7,7 +7,7 @@
 # working installation cannot produce.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-resolve="$here/../skills/nostdb/scripts/resolve-engine.sh"
+resolve="$here/../skills/nostdb/scripts/resolve-engine.py"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -193,7 +193,10 @@ script, state, keys = sys.argv[1], sys.argv[2], sys.argv[3]
 env = dict(os.environ, NOSTDB_SKILL_STATE=state, PATH="/usr/bin:/bin")
 pid, fd = pty.fork()
 if pid == 0:
-    os.execvpe("/bin/sh", ["/bin/sh", script, "nost_language_version", "2", "1.4.0"], env)
+    # The script itself rather than through an interpreter named here, so its shebang decides. Naming
+    # `/bin/sh` made this driver a second declaration of what the script is written in, and it was wrong the
+    # moment the script changed language.
+    os.execvpe(script, [script, "nost_language_version", "2", "1.4.0"], env)
 
 out = b""
 def drain(seconds):

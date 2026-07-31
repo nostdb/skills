@@ -156,7 +156,7 @@ names. The report answers with what the build *supports*, which is a list, so it
 contract key plus an `s`:
 
 ```bash
-scripts/resolve-engine.sh nost_language_version 2   # asks; the report answers
+scripts/resolve-engine.py nost_language_version 2   # asks; the report answers
                                                     # "nost_language_versions": [2]
 ```
 
