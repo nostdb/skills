@@ -19,6 +19,14 @@ for required in README.md AGENTS.md CLAUDE.md LICENSE \
   fi
 done
 
+# Sequencing lives in the root superproject, and `AGENTS.md` here says so. A copy in this repository is a
+# second place to look and a second thing to drift — and one arrived, written by a command whose working
+# directory was here rather than the root, with nothing to refuse it.
+if [ -e IMPLEMENTATION_PROGRESS.md ]; then
+  echo "IMPLEMENTATION_PROGRESS.md belongs to the root superproject, not to this repository" >&2
+  exit 1
+fi
+
 if [ ! -L CLAUDE.md ] || [ "$(readlink CLAUDE.md)" != "AGENTS.md" ]; then
   echo "CLAUDE.md must be a symlink to AGENTS.md" >&2
   exit 1
