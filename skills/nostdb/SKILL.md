@@ -55,10 +55,10 @@ database in order to read a help message is the wrong order of operations.
 /nostdb help                       this
 
 Options:
-  --scan=default|ai                default: analyzers first, AI for what they could not
-                                   resolve. ai: the same, with the AI half required
+  --scan=default                   analyzers first, AI for what they could not resolve
+  --scan=ai                        the same, with the AI half required
   --cypher '<statement>'           run a statement you wrote instead of a question
-  --replace                        let convert overwrite an existing output; takes no value
+  --replace                        let convert overwrite an existing output
 ```
 
 `/nostdb .` with no path means the current folder. It configures the project if it is not configured,

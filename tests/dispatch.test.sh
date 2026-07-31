@@ -151,7 +151,7 @@ echo "ok   and it names every action a caller can ask for"
 # `--scan=default` was written in prose below the fence and appeared in no help output a reader would scan,
 # because the invocation lines show `analyzer` and `ai` and neither says they are two of three. A value nobody
 # can see is not documented, so each one is pinned here by name.
-for expected in "--scan=default|ai" "--cypher '<statement>'" "--replace"; do
+for expected in "--scan=default" "--scan=ai" "--cypher '<statement>'" "--replace"; do
   case "$surface" in
     *"$expected"*) : ;;
     *) echo "FAIL the surface omits what $expected accepts" >&2; failures=$((failures + 1)) ;;
