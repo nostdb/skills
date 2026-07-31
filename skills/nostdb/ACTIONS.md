@@ -13,7 +13,8 @@ is also how `--scan` means something: it selects over this column rather than ho
 | `/nostdb .` | optional | configures the project if it is not, analyzes it, and commits what it found; enrichment is the optional part |
 | `/nostdb . --scan=ai` | required | the same build, with the AI half required rather than optional; fails without a model |
 | `/nostdb export .` | none | writes the graph as canonical `.nost`, once, from what is already built |
-| `/nostdb .nostdb/root.nost --sync` | none | reconciles the two representations |
+| `/nostdb sync .` | none | reconciles a project's two representations, or reports `SYNC_CONFLICT` when both changed |
+| `/nostdb convert <in> <out>` | none | converts between `.nost` and `.nostdb`, in whichever direction the extensions name |
 | `/nostdb summary .` | none | reports the totals, the kinds present, and whether the container is sound |
 | `/nostdb query --cypher '...'` | none | runs a statement the caller wrote |
 | `/nostdb query "..."` | required | generates openCypher from a question |

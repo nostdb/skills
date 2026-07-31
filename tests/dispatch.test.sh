@@ -88,6 +88,31 @@ case "$got" in
   *) echo "ok   export neither builds nor initializes" ;;
 esac
 
+# `/nostdb convert` converts two files, in whichever direction the extensions name.
+#
+# Asserted in both directions, because the direction is the Engine's to decide from the extensions and a
+# dispatcher that reordered or dropped an operand would still look right in one of them.
+got=$(NOSTDB=ENGINE "$dispatch" convert a.nost b.nostdb 2>/dev/null)
+check "convert emits the input and the output, in order" "$got" "ENGINE convert a.nost b.nostdb"
+got=$(NOSTDB=ENGINE "$dispatch" convert x.nostdb y.nost 2>/dev/null)
+check "and the other direction is the same command" "$got" "ENGINE convert x.nostdb y.nost"
+
+# Both operands are required. Defaulting either would invent a path nobody named, and the one it would
+# invent is an output — a command that writes somewhere nobody asked for is worse than one that refuses.
+"$dispatch" convert only.nost >/dev/null 2>&1 && r=$? || r=$?
+check "convert with one operand is refused" "$r" "2"
+
+# `sync` takes the **project**, not either representation. The surface used to show
+# `/nostdb .nostdb/root.nost --sync`, which names a file — passing that through would hand `sync` a file
+# where it expects the project containing it.
+got=$(NOSTDB=ENGINE "$dispatch" sync . 2>/dev/null)
+check "sync names a project" "$got" "ENGINE sync ."
+case "$got" in
+  *root.nost*) echo "FAIL sync was given a representation rather than a project: [$got]" >&2
+    failures=$((failures + 1)) ;;
+  *) echo "ok   and not a representation" ;;
+esac
+
 # `/nostdb help` needs no Engine. It used to map to `nostdb help`, so reading a help message required
 # resolving one — and with none installed, resolution stops and asks whether to install. Nobody should
 # have to install a database to find out what a Skill does.
@@ -119,7 +144,7 @@ echo "ok   and it names every action a caller can ask for"
 # `--scan=default` was written in prose below the fence and appeared in no help output a reader would scan,
 # because the invocation lines show `analyzer` and `ai` and neither says they are two of three. A value nobody
 # can see is not documented, so each one is pinned here by name.
-for expected in "--scan=default|ai" "--cypher '<statement>'" "--sync"; do
+for expected in "--scan=default|ai" "--cypher '<statement>'"; do
   case "$surface" in
     *"$expected"*) : ;;
     *) echo "FAIL the surface omits what $expected accepts" >&2; failures=$((failures + 1)) ;;
@@ -312,7 +337,10 @@ ai_free=$(printf '%s\n' "$map" | awk -F'\t' '$3 != "required" { printf "%s ", $1
 # action is no longer required to emit one, which is exactly why the check cannot be textual any more.
 labels=""
 for label in $(grep -oE '^  [a-z-]+\)$' "$dispatch" | tr -d ' )'); do
-  if NOSTDB=ENGINE "$dispatch" "$label" . >/dev/null 2>&1; then
+  # Two arguments, not one. `convert` takes an input and an output and refuses with fewer, so probing with
+  # a single path reported it as an action the dispatcher does not map — while it does. Every other action
+  # reads only what it needs, so a spare argument changes nothing for them.
+  if NOSTDB=ENGINE "$dispatch" "$label" . . >/dev/null 2>&1; then
     labels="$labels$label "
   fi
 done

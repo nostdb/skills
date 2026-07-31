@@ -127,7 +127,24 @@ case "$action" in
     echo "$NOSTDB export --nost $target"
     ;;
   sync)
+    # Reconciles a **project's** two representations, so the argument is the project rather than either
+    # file. `.` when none is given, like every other path-taking action here.
+    #
+    # It takes no source and no target, and that is the command rather than an omission: it decides which
+    # side changed since the two last agreed, by comparing generations and content digests against a
+    # recorded baseline. Two arbitrary files have no baseline, so the question has no answer for them —
+    # which is why `convert` is a separate action rather than a direction flag on this one.
     echo "$NOSTDB sync ${1:-.}"
+    ;;
+  convert)
+    # `.nost` <-> `.nostdb`, in whichever direction the extensions name. The Engine decides which, and
+    # refuses two identical extensions because that is a copy rather than a conversion.
+    #
+    # Both operands are required. Defaulting either would invent a path somebody did not name, and the one
+    # it would invent is an output — a command that writes somewhere nobody asked for is worse than a
+    # command that refuses.
+    [ "$#" -ge 2 ] || { echo "convert needs an input and an output" >&2; exit 2; }
+    echo "$NOSTDB convert $1 $2"
     ;;
   summary)
     # What a database holds, in five reads that write nothing. Every number is the Engine's: counting

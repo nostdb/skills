@@ -44,7 +44,8 @@ database in order to read a help message is the wrong order of operations.
 /nostdb .                          analyze this folder and write the database
 /nostdb . --scan=ai                the same, but AI is required; fails without a model
 /nostdb export .                   write the graph as canonical .nost
-/nostdb .nostdb/root.nost --sync   reconcile .nost and .nostdb
+/nostdb sync .                     reconcile a project's .nost and .nostdb
+/nostdb convert <in> <out>         convert between .nost and .nostdb, either way
 /nostdb summary .                  report how much is in the database, and of what kinds
 /nostdb query --cypher '...'       run a statement you wrote
 /nostdb query "..."                ask in English; the generated Cypher is shown
@@ -58,7 +59,6 @@ Options:
   --scan=default|ai                default: analyzers first, AI for what they could not
                                    resolve. ai: the same, with the AI half required
   --cypher '<statement>'           run a statement you wrote instead of a question
-  --sync                           reconcile rather than build; takes no value
 ```
 
 `/nostdb .` with no path means the current folder. It configures the project if it is not configured,
@@ -88,6 +88,22 @@ default on purpose.
 
 To spend **nothing**, set `analysis.ai_mode` to `off` in `.nostdb/settings.json`. That is a project's standing
 answer rather than a flag somebody has to remember, and the Engine reads it on every build.
+
+### `sync` reconciles a project; `convert` converts two files
+
+They look similar and are not, so the surface names them differently on purpose.
+
+`sync` decides **which side changed** since a project's `.nost` and `.nostdb` last agreed, comparing
+generations and content digests against a recorded baseline. When both changed it modifies neither and
+reports `SYNC_CONFLICT`, because preferring either would discard the other's work and nothing can know
+which one was meant. That is why it takes a project and not a source and a target: two arbitrary files
+have no baseline, so the question it answers has no answer for them.
+
+`convert` has no such question. It reads one file and writes the other, in whichever direction the
+extensions name — `.nost` to `.nostdb` validates then commits, `.nostdb` to `.nost` writes the canonical
+document. Two identical extensions are refused, because that is a copy.
+
+So: reconciling a project is `sync`, and turning one file into the other is `convert`.
 
 ### `/nostdb export .` writes the document, once
 
@@ -213,7 +229,8 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | --- | --- | --- |
 | `build` | `/nostdb .` | optional |
 | `export` | `/nostdb export .` | none |
-| `sync` | `/nostdb .nostdb/root.nost --sync` | none |
+| `sync` | `/nostdb sync .` | none |
+| `convert` | `/nostdb convert <in> <out>` | none |
 | `summary` | `/nostdb summary .` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
 | `view` | `/nostdb view .` | none |
