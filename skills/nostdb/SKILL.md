@@ -44,8 +44,6 @@ database in order to read a help message is the wrong order of operations.
 /nostdb .                             analyze this folder and write the database
 /nostdb . --scan=ai                   the same, but AI is required; fails without a model
 /nostdb export .                      write the graph as canonical .nost
-/nostdb convert in.nost out.nostdb    convert between .nost and .nostdb, either way
-/nostdb convert ... --replace         the same, overwriting an output that exists
 /nostdb summary .                     report how much is in the database, and of what kinds
 /nostdb query --cypher '...'          run a statement you wrote
 /nostdb query "..."                   ask in English; the generated Cypher is shown
@@ -54,6 +52,12 @@ database in order to read a help message is the wrong order of operations.
 /nostdb preset jpa                    propose records for a preset, and apply them
 /nostdb plugin add '...'              install a plugin from a pinned GitHub source
 /nostdb help                          this
+
+Convert between .nost and .nostdb, in whichever direction the extensions name.
+An existing output is refused unless --replace is passed:
+
+/nostdb convert .nostdb/root.nostdb root.nost
+/nostdb convert .nostdb/root.nostdb root.nost --replace
 
 Options:
   --scan=default                      analyzers first, AI for what they could not resolve
@@ -92,8 +96,12 @@ answer rather than a flag somebody has to remember, and the Engine reads it on e
 
 ### `convert` writes one representation from the other
 
-In whichever direction the extensions name: `.nost` to `.nostdb` validates then commits, `.nostdb` to
-`.nost` writes the canonical document. Two identical extensions are refused, because that is a copy.
+`.nost` to `.nostdb` validates then commits; `.nostdb` to `.nost` writes the canonical document. Two
+identical extensions are refused, because that is a copy.
+
+The two lines above are one sequence: the second re-runs the first, which is when `--replace` is needed and
+the shape most people meet it in. The reverse direction — a `.nost` onto a project's database — is the one
+to be careful with, and the paragraph below says why.
 
 **It refuses an output that already exists**, and `--replace` is what permits overwriting one. Pass the
 flag only when somebody asked for it. Supplying it on their behalf would turn a refusal they were meant to
@@ -229,7 +237,7 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | --- | --- | --- |
 | `build` | `/nostdb .` | optional |
 | `export` | `/nostdb export .` | none |
-| `convert` | `/nostdb convert in.nost out.nostdb` | none |
+| `convert` | `/nostdb convert .nostdb/root.nostdb root.nost` | none |
 | `summary` | `/nostdb summary .` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
 | `view` | `/nostdb view .` | none |
