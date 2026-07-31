@@ -41,24 +41,25 @@ anything: `help` describes this Skill, the Skill is what knows, and asking someb
 database in order to read a help message is the wrong order of operations.
 
 ```text
-/nostdb .                          analyze this folder and write the database
-/nostdb . --scan=ai                the same, but AI is required; fails without a model
-/nostdb export .                   write the graph as canonical .nost
-/nostdb convert <in> <out>         convert between .nost and .nostdb, either way
-/nostdb summary .                  report how much is in the database, and of what kinds
-/nostdb query --cypher '...'       run a statement you wrote
-/nostdb query "..."                ask in English; the generated Cypher is shown
-/nostdb view .                     render the graph through a viewer plugin
-/nostdb preset                     list the schema presets this Skill ships
-/nostdb preset jpa                 propose records for a preset, and apply them
-/nostdb plugin add '...'           install a plugin from a pinned GitHub source
-/nostdb help                       this
+/nostdb .                             analyze this folder and write the database
+/nostdb . --scan=ai                   the same, but AI is required; fails without a model
+/nostdb export .                      write the graph as canonical .nost
+/nostdb convert in.nost out.nostdb    convert between .nost and .nostdb, either way
+/nostdb convert ... --replace         the same, overwriting an output that exists
+/nostdb summary .                     report how much is in the database, and of what kinds
+/nostdb query --cypher '...'          run a statement you wrote
+/nostdb query "..."                   ask in English; the generated Cypher is shown
+/nostdb view .                        render the graph through a viewer plugin
+/nostdb preset                        list the schema presets this Skill ships
+/nostdb preset jpa                    propose records for a preset, and apply them
+/nostdb plugin add '...'              install a plugin from a pinned GitHub source
+/nostdb help                          this
 
 Options:
-  --scan=default                   analyzers first, AI for what they could not resolve
-  --scan=ai                        the same, with the AI half required
-  --cypher '<statement>'           run a statement you wrote instead of a question
-  --replace                        let convert overwrite an existing output
+  --scan=default                      analyzers first, AI for what they could not resolve
+  --scan=ai                           the same, with the AI half required
+  --cypher '<statement>'              run a statement you wrote instead of a question
+  --replace                           let convert overwrite an existing output
 ```
 
 `/nostdb .` with no path means the current folder. It configures the project if it is not configured,
@@ -228,7 +229,7 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | --- | --- | --- |
 | `build` | `/nostdb .` | optional |
 | `export` | `/nostdb export .` | none |
-| `convert` | `/nostdb convert <in> <out>` | none |
+| `convert` | `/nostdb convert in.nost out.nostdb` | none |
 | `summary` | `/nostdb summary .` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
 | `view` | `/nostdb view .` | none |

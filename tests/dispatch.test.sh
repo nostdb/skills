@@ -173,6 +173,7 @@ case "$surface" in
   *) echo "ok   and names no option the dispatcher does not serve" ;;
 esac
 
+
 # And it stops at the surface.
 #
 # Nothing checked where the extraction *ended*, only that it contained the right lines, so a
@@ -370,6 +371,25 @@ printf '%s\n' "$map" | while IFS="$(printf '\t')" read -r action serves usage; d
       ;;
   esac
 done || failures=$((failures + 1))
+
+# And every invocation the action map declares is one the surface actually shows.
+#
+# The cross-check below ties the map to ACTIONS.md, and both are prose an agent reads rather than the help
+# a person sees — so the two of them can agree with each other while the surface block above shows a third
+# spelling, which is exactly what happened: the map said `convert <in> <out>` for two commits after the
+# surface started showing real paths.
+if printf '%s\n' "$map" | while IFS="$(printf '\t')" read -r action serves usage; do
+  case "$surface" in
+    *"$serves"*) : ;;
+    *)
+      echo "FAIL $action declares $serves, which the surface does not show" >&2
+      exit 1 ;;
+  esac
+done; then
+  echo "ok   and shows every invocation the map declares"
+else
+  failures=$((failures + 1))
+fi
 
 # A `required` row must not be reachable through this path at all.
 for action in query-natural enrich; do
