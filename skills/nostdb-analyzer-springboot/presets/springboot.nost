@@ -280,31 +280,32 @@ schema BuildModule {
 // `nostdb-core` does for `CONTAINS` and for the same reason: one constraint cannot describe five shapes, and
 // declaring one would raise a violation on every edge of the others.
 //
-// # Five of these cannot be proposed yet, and the reason is not in this file
+// # Five of these reach a record a build wrote, and that needs its identifier
 //
-// A change set names an edge's endpoints by opaque local identifier — `{"local": "n_…"}` — and **nothing
-// exposes the identifier of a record a build wrote**. No query function returns one, and the reserved `id`
-// property is empty on a record the Engine minted an identifier for. So a proposal can create records and
-// join them to each other, which is verified, and cannot join them to `Endpoint`, `File`, `Method`, or
-// `Directory`.
+// A change set names an edge's endpoint by opaque identifier — `{"local": "n_…"}` — so an edge to `Endpoint`,
+// `File`, `Method`, or `Directory` needs the identifier the Engine minted for it. One query gives it:
 //
-// The five are declared anyway, and that is a considered choice rather than an oversight. A preset exists to
-// fix a name before a model invents one; leaving them out until the route exists guarantees that whatever
-// arrives then is called something else, and a graph built today could never be joined to one built
-// afterwards. `SKILL.md` is what must not ask a model to emit them, and it does not.
+//   nostdb query "MATCH (e:Endpoint) RETURN e AS record, e.path AS path" --project . --format json
+//   -> [{"node": "n_019fb6a0-43b7-7942-8c96-a7c7fcf8341c"}, "/users"]
 //
-// Each is marked below. What is proposable today is every relation among this file's own records.
+// `nostdb export --nost` writes the same identifier as each record's reserved `id` property, which is the
+// route to use when a whole graph is being read rather than one pattern.
+//
+// This replaces a note that said the opposite. It was written after looking for a `nostdb.id()` function and
+// for an `id` property in a table-formatted result — neither exists — and concluding there was no route
+// without returning the record itself. Five relations were marked unproposable and one of them was then
+// proposed, applied, and queried across the boundary.
 // ---------------------------------------------------------------------------
 
 // A route to what it accepts. `Endpoint` is the record a build already writes.
 //
-// **Not proposable yet**: it reaches a record a build wrote.
+// Reaches a record a build wrote, so its identifier comes from a query — see the header.
 schema ACCEPTS(Endpoint -> Request) {
 }
 
 // A route to what it returns.
 //
-// **Not proposable yet**: it reaches a record a build wrote.
+// Reaches a record a build wrote, so its identifier comes from a query — see the header.
 schema RETURNS(Endpoint -> Response) {
 }
 
@@ -314,8 +315,8 @@ schema RETURNS(Endpoint -> Response) {
 // and one pair of shapes cannot say that. Declared anyway rather than left out, because the point of a preset
 // is fixing the name — a proposal writing `VALIDATED_BY` would produce a second relation type for one fact.
 //
-// Proposable between this file's own records, which is where most rules sit: a rule over a request payload or
-// a column. One reaching `Endpoint` is subject to the limit above.
+// Most rules sit between this file's own records — a rule over a request payload or a column — and one from
+// `Endpoint` needs that record's identifier like the two above.
 schema CONSTRAINED_BY {
 }
 
@@ -327,7 +328,7 @@ schema CONSTRAINED_BY {
 // cardinality: a query asking what touches a table should not have to name every mode to avoid missing one.
 // `read`, `write`, or `read_write`.
 //
-// Proposable from `Job`, which this file owns. One from `Endpoint` is subject to the limit above.
+// From `Job`, which this file owns, or from `Endpoint` with that record's identifier.
 schema ACCESSES {
   mode: string
 }
@@ -342,8 +343,8 @@ schema TRIGGERED_BY(Job -> Schedule) {
 // for a builtin relation would constrain the Engine's own edges to this file's shape and warn on every one of
 // them.
 //
-// **Not proposable yet**: it reaches a record a build wrote. Until it is, `Job.handler` carries the name and a
-// reader joins on it — which is why that property is there rather than replaced by this edge.
+// Reaches a record a build wrote, so its identifier comes from a query. `Job.handler` still carries the name,
+// because a handler that resolved to nothing is a fact worth keeping and an edge cannot hold it.
 schema RUNS(Job -> Method) {
 }
 
@@ -365,8 +366,8 @@ schema HAS_TABLE_COLUMN(Table -> TableColumn) {
 // makes `application.yaml`, `libs.versions.toml`, `gradle.properties`, and a `build.gradle.kts` all reachable
 // as themselves: each is a `File` the scan recorded, and what was read out of it hangs here.
 //
-// **Not proposable yet**: it reaches a record a build wrote. A `Setting` therefore stands on its own today,
-// and `Setting.profile` is what distinguishes two documents' readings of one key.
+// Reaches a record a build wrote, so its identifier comes from a query. `Setting.profile` still distinguishes
+// two documents' readings of one key, which the edge alone would not.
 schema DECLARES_SETTING(File -> Setting) {
 }
 
@@ -395,7 +396,7 @@ schema INCLUDES_MODULE(BuildModule -> BuildModule) {
 // To the builtin `Directory` the scan recorded, which is what lets a reader go from a file to the module that
 // builds it without matching path prefixes by hand.
 //
-// **Not proposable yet**: it reaches a record a build wrote. `BuildModule.path` carries the directory as a
-// string meanwhile.
+// Reaches a record a build wrote, so its identifier comes from a query. `BuildModule.path` carries the
+// directory as written, which is what a build file states.
 schema ROOTED_AT(BuildModule -> Directory) {
 }

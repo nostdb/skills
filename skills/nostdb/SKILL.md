@@ -1,7 +1,7 @@
 ---
 name: nostdb
 description: Build, query, and convert a NostDB property graph of a codebase through the nostdb command surface. Use when asked to create or refresh a .nostdb, materialize the canonical .nost, run an openCypher query over a code graph, ask in natural language how parts of a codebase connect, convert between .nost and .nostdb, open a graph viewer, or install a NostDB plugin.
-license: Apache-2.0
+license: MIT
 metadata:
   version: 0.1.5
   engine: latest
@@ -93,6 +93,16 @@ default on purpose.
 
 To spend **nothing**, set `analysis.ai_mode` to `off` in `.nostdb/settings.json`. That is a project's standing
 answer rather than a flag somebody has to remember, and the Engine reads it on every build.
+
+### More than one thing can read what a build did not
+
+A build names the annotations it did not interpret and the files nothing analyzed. Some of those have a Skill
+that reads them and some do not, and where two producers describe one subject their answers have to reach one
+record rather than two.
+
+[`COVERAGE.md`](COVERAGE.md) is that workflow: which producer reads what, why each proposes separately, how
+the second one upserts the record the first created, and what to do when they disagree about a value — which
+is to say so rather than pick.
 
 ### `convert` writes one representation from the other
 

@@ -11,7 +11,8 @@ cd "$(dirname "$0")/.."
 # every skill, and the layout checks below own it — naming one path here as well would make
 # their diagnostic unreachable and leave the general rule unproven.
 for required in README.md AGENTS.md CLAUDE.md LICENSE \
-    skills/nostdb/ACTIONS.md skills/nostdb/RESOLUTION.md skills/nostdb/ENRICHMENT.md; do
+    skills/nostdb/ACTIONS.md skills/nostdb/RESOLUTION.md skills/nostdb/ENRICHMENT.md \
+    skills/nostdb/COVERAGE.md; do
   if [ ! -e "$required" ]; then
     echo "missing required file: $required" >&2
     exit 1
@@ -23,8 +24,11 @@ if [ ! -L CLAUDE.md ] || [ "$(readlink CLAUDE.md)" != "AGENTS.md" ]; then
   exit 1
 fi
 
-if ! grep -q '^ *Apache License$' LICENSE; then
-  echo "LICENSE must be the Apache License" >&2
+# MIT rather than Apache-2.0, and rather than the SSPL the Engine carries. A Skill is a document somebody
+# reads, forks, and replaces with their own; the shortest permissive licence is the one that says so with the
+# least to read. The root contract records the change.
+if ! grep -q '^MIT License$' LICENSE; then
+  echo "LICENSE must be the MIT License" >&2
   exit 1
 fi
 
@@ -96,7 +100,7 @@ for definition in $definitions; do
   references=$(
     {
       grep -oE '\]\([^)#][^)]*\)' "$definition" | sed 's/^](//; s/)$//'
-      grep -oE 'scripts/[A-Za-z0-9_-]+\.sh' "$definition"
+      grep -oE 'scripts/[A-Za-z0-9_-]+\.(sh|py)' "$definition"
     } | grep -v '://' | LC_ALL=C sort -u
   )
   for reference in $references; do
@@ -108,7 +112,11 @@ for definition in $definitions; do
 
   # A script a definition invokes has to be executable here. Nothing that copies the folder
   # will add the bit afterwards.
-  for script in $(find "$folder" -name '*.sh'); do
+  #
+  # Both languages, because one Skill's scripts are shell and another's are Python. Checking only `*.sh`
+  # would have left every Python script unverified — and the reference scan above had the same gap, so a
+  # definition could name one that was not there.
+  for script in $(find "$folder" -name '*.sh' -o -name '*.py'); do
     if [ ! -x "$script" ]; then
       echo "$script is not executable, so an installed skill could not run it" >&2
       exit 1

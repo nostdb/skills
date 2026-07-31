@@ -9,7 +9,7 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 skill="$here/../skills/nostdb-analyzer-springboot"
 other="$here/../skills/nostdb"
-presets="$skill/scripts/presets.sh"
+presets="$skill/scripts/presets.py"
 index="$skill/presets/index"
 document="$skill/presets/springboot.nost"
 definition="$skill/SKILL.md"
@@ -155,23 +155,24 @@ if [ -n "$shared" ]; then
 fi
 group_end "no label is shared with the nostdb Skill's presets"
 
-# The five relations that cannot be proposed are marked, and the definition does not ask for them.
+# The five relations that reach a build-written record say where the identifier comes from.
 #
-# An edge names its endpoints by opaque identifier and nothing exposes the identifier of a record the Engine
-# minted one for. The names are declared so that they are already fixed when a route exists; what must stay
-# true is that they are marked, and that `SKILL.md` tells a model to leave them out.
+# An earlier version of this suite pinned the opposite — that they could not be proposed at all — which was
+# wrong: `RETURN e` in JSON format yields the identifier, and one of the five was proposed, applied, and
+# queried across the boundary. What must stay true is that the preset says how, so a model does not conclude
+# from silence that it cannot.
 group_start
 for relation in ACCEPTS RETURNS RUNS DECLARES_SETTING ROOTED_AT; do
   if ! awk -v want="schema $relation" '
     $0 ~ "^" want "[ (]" { print block; exit }
     /^\/\// { block = block $0 "\n"; next }
     { block = "" }
-  ' "$document" | grep -q "Not proposable yet"; then
-    echo "FAIL $relation is not marked as unproposable, so a model would be told to emit it" >&2
+  ' "$document" | grep -q "identifier comes from a query"; then
+    echo "FAIL $relation does not say where its endpoint's identifier comes from" >&2
     group=$((group + 1))
   fi
 done
-group_end "every unproposable relation is marked in the preset"
+group_end "every relation reaching a build-written record says how"
 
 # Both limits are stated where a model reads, not only in the preset's comments.
 #
@@ -180,8 +181,11 @@ group_end "every unproposable relation is marked in the preset"
 # string, and a number, and refuses an array. A model told to fill `Table.primary_key` would have its whole
 # proposal refused for one field.
 group_start
-for stated in "Do not propose an edge into a record a build wrote" \
-    "Do not propose a list-valued property"; do
+for stated in "An edge into a record a build wrote needs its identifier" \
+    "--format json" \
+    "Do not propose a list-valued property" \
+    "Java and Kotlin, both" \
+    "primary-constructor properties"; do
   case "$(cat "$definition")" in
     *"$stated"*) ;;
     *)

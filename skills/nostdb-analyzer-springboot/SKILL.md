@@ -1,7 +1,7 @@
 ---
 name: nostdb-analyzer-springboot
 description: Read a Spring Boot service into a NostDB graph — its routes' request and response shapes, the constraints stated over them, the data store it connects to, the work the framework invokes on a schedule or a message, and what its build declares. Use when asked what endpoints a Spring Boot project exposes and what they accept or return, which tables or collections it touches, what validates or authorizes a request, what runs on a schedule, which datasource or settings a profile configures, or what a Gradle or Maven build depends on.
-license: Apache-2.0
+license: MIT
 metadata:
   version: 0.1.5
   engine: latest
@@ -38,7 +38,7 @@ its own, so replacing one never touches what an analyzer wrote.
 
 | Action | AI usage | What it does |
 | --- | --- | --- |
-| list the vocabulary | none | `scripts/presets.sh list` — answered from this folder, no Engine |
+| list the vocabulary | none | `scripts/presets.py list` — answered from this folder, no Engine |
 | have it validated | none | `nostdb check` reads the preset like any other `.nost` document |
 | find what a build did not read | none | the Engine's own build report and two queries below |
 | propose records | required | a model reads the source and writes a change set in these names |
@@ -46,6 +46,21 @@ its own, so replacing one never touches what an analyzer wrote.
 Proposing is `required` and fails without a model rather than falling back. A caller who asked what a
 service exposes and got an answer derived some other way has been told something untrue about where it came
 from.
+
+## Java and Kotlin, both
+
+The vocabulary names framework facts, not language ones, so it does not change between the two. What differs
+is where a project writes them, and one difference is worth knowing:
+
+Kotlin states a request type's constraints on a `data class`'s primary-constructor properties —
+`data class NewUser(@NotBlank val email: String)` — and Java states them on fields. Both are reported as
+uninterpreted annotations by a build, which is what step 1 relies on. Until `graph_schema_version` 10 the
+Kotlin ones were read and dropped, so a build reported none of them; a project built by an older Engine will
+report them after a rebuild.
+
+`build.gradle.kts` and `settings.gradle.kts` are Kotlin, so an analyzer reads them as source and they never
+appear as unread files. Their `dependencies {}` and `include()` calls are still unread — those are calls to a
+language analyzer — so find them by path, as step 2 says.
 
 ## Step 1: let the Engine say what it could not read
 
@@ -60,8 +75,8 @@ note: no framework analyzer here interprets Component, NotBlank, ResponseStatus,
 The route records already exist. The annotation names are what to look up:
 
 ```bash
-scripts/presets.sh for Scheduled      # -> springboot
-scripts/presets.sh for Component      # -> exits 1: nothing here covers it
+scripts/presets.py for Scheduled      # -> springboot
+scripts/presets.py for Component      # -> exits 1: nothing here covers it
 ```
 
 `Component` exiting 1 is correct rather than a gap to fill. This preset declares no `Bean`, so dependency
@@ -96,20 +111,33 @@ rather than trusts:
 - **the base generation is the one you read.** A change set computed against a graph that has moved is
   refused rather than rebased, because it resolved names against something the producer never saw.
 
-### Do not propose an edge into a record a build wrote
+### An edge into a record a build wrote needs its identifier
 
-Five relations in the preset reach `Endpoint`, `File`, `Method`, or `Directory`: `ACCEPTS`, `RETURNS`,
-`RUNS`, `DECLARES_SETTING`, and `ROOTED_AT`. **Leave them out of a proposal.** An edge names its endpoints
-by opaque identifier, and nothing exposes the identifier of a record the Engine minted one for — no query
-function returns it, and the reserved `id` property is empty on those records. An edge naming an identifier
-you invented is an edge to a record that is not there, which `apply` refuses.
+Five relations reach `Endpoint`, `File`, `Method`, or `Directory`: `ACCEPTS`, `RETURNS`, `RUNS`,
+`DECLARES_SETTING`, and `ROOTED_AT`. A change set names an endpoint by opaque identifier, so ask for the
+record itself and read it out:
 
-They are in the preset so that the name is already fixed when a route to those identifiers exists. Until
-then the properties carry it: `Job.handler` names the method, `BuildModule.path` names the directory, and
-`Setting.profile` distinguishes two documents' readings of one key.
+```bash
+nostdb query "MATCH (e:Endpoint) RETURN e AS record, e.method AS method, e.path AS path" \
+  --project . --format json
+```
 
-Everything among this vocabulary's own records is proposable, which is most of it: a request to its rules, a
-datasource to its tables, a table to its columns, a job to its schedules, a module to its dependencies.
+```json
+{"columns": ["record", "method", "path"],
+ "rows": [[{"node": "n_019fb6a0-43b7-7942-8c96-a7c7fcf8341c"}, "POST", "/users"]]}
+```
+
+`{"node": "n_…"}` is the value an endpoint takes: `"source": {"local": "n_019fb6a0-…"}`. Match the record by
+the properties you can see — a route by its method and path, a file by its path — and use the identifier
+beside them.
+
+Two things this does not survive. A record reached through a `@link` belongs to another database and a write
+may not touch it, so check `nostdb.source(e)` when a project has links. And an identifier read from one
+generation names the same record in the next unless a build removed it, which is what the base generation
+check is for: propose against the generation you read.
+
+`nostdb export --nost .` writes the same identifiers as each record's reserved `id` property. Prefer the
+query for one pattern and the export when reading a whole graph.
 
 ### Do not propose a list-valued property
 

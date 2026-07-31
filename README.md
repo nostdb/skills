@@ -27,6 +27,7 @@ skills/
 │   ├── ACTIONS.md       # every action and what it declares about AI usage
 │   ├── RESOLUTION.md    # which `nostdb` a Skill uses, and how it decides
 │   ├── ENRICHMENT.md    # what is sent to a model, and what must be true first
+│   ├── COVERAGE.md      # who reads what a build did not, and how two readings reach one record
 │   ├── presets/         # vocabularies a proposal uses, and the Engine validates
 │   └── scripts/         # the deterministic parts: resolution, dispatch, and the two gates
 └── nostdb-analyzer-springboot/
@@ -89,4 +90,5 @@ for which increment built which part.
 
 ## Licence
 
-Apache-2.0. A Skill is meant to be read, forked, and replaced.
+MIT. A Skill is meant to be read, forked, and replaced, and the shortest permissive licence is the one
+that says so with the least to read.
