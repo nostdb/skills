@@ -3,7 +3,7 @@ name: nostdb
 description: Build, query, and convert a NostDB property graph of a codebase through the nostdb command surface. Use when asked to create or refresh a .nostdb, materialize the canonical .nost, run an openCypher query over a code graph, ask in natural language how parts of a codebase connect, convert between .nost and .nostdb, open a graph viewer, or install a NostDB plugin.
 license: MIT
 metadata:
-  version: 0.1.5
+  version: 0.1.6
   engine: latest
   requires:
     nost_language_version: 3

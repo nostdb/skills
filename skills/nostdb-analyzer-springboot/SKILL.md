@@ -3,7 +3,7 @@ name: nostdb-analyzer-springboot
 description: Read a Spring Boot service into a NostDB graph — its routes' request and response shapes, the constraints stated over them, the data store it connects to, the work the framework invokes on a schedule or a message, and what its build declares. Use when asked what endpoints a Spring Boot project exposes and what they accept or return, which tables or collections it touches, what validates or authorizes a request, what runs on a schedule, which datasource or settings a profile configures, or what a Gradle or Maven build depends on.
 license: MIT
 metadata:
-  version: 0.1.5
+  version: 0.1.6
   engine: latest
   requires:
     nost_language_version: 3
