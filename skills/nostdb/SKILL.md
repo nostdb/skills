@@ -1,6 +1,6 @@
 ---
 name: nostdb
-description: Build, query, and synchronize a NostDB property graph of a codebase through the nostdb command surface. Use when asked to create or refresh a .nostdb, materialize the canonical .nost, run an openCypher query over a code graph, ask in natural language how parts of a codebase connect, reconcile .nost with .nostdb, open a graph viewer, or install a NostDB plugin.
+description: Build, query, and synchronize a NostDB property graph of a codebase through the nostdb command surface. Use when asked to create or refresh a .nostdb, materialize the canonical .nost, run an openCypher query over a code graph, ask in natural language how parts of a codebase connect, convert between .nost and .nostdb, open a graph viewer, or install a NostDB plugin.
 license: Apache-2.0
 metadata:
   version: 0.1.4
@@ -44,7 +44,6 @@ database in order to read a help message is the wrong order of operations.
 /nostdb .                          analyze this folder and write the database
 /nostdb . --scan=ai                the same, but AI is required; fails without a model
 /nostdb export .                   write the graph as canonical .nost
-/nostdb sync .                     reconcile a project's .nost and .nostdb
 /nostdb convert <in> <out>         convert between .nost and .nostdb, either way
 /nostdb summary .                  report how much is in the database, and of what kinds
 /nostdb query --cypher '...'       run a statement you wrote
@@ -59,6 +58,7 @@ Options:
   --scan=default|ai                default: analyzers first, AI for what they could not
                                    resolve. ai: the same, with the AI half required
   --cypher '<statement>'           run a statement you wrote instead of a question
+  --replace                        let convert overwrite an existing output; takes no value
 ```
 
 `/nostdb .` with no path means the current folder. It configures the project if it is not configured,
@@ -89,21 +89,20 @@ default on purpose.
 To spend **nothing**, set `analysis.ai_mode` to `off` in `.nostdb/settings.json`. That is a project's standing
 answer rather than a flag somebody has to remember, and the Engine reads it on every build.
 
-### `sync` reconciles a project; `convert` converts two files
+### `convert` writes one representation from the other
 
-They look similar and are not, so the surface names them differently on purpose.
+In whichever direction the extensions name: `.nost` to `.nostdb` validates then commits, `.nostdb` to
+`.nost` writes the canonical document. Two identical extensions are refused, because that is a copy.
 
-`sync` decides **which side changed** since a project's `.nost` and `.nostdb` last agreed, comparing
-generations and content digests against a recorded baseline. When both changed it modifies neither and
-reports `SYNC_CONFLICT`, because preferring either would discard the other's work and nothing can know
-which one was meant. That is why it takes a project and not a source and a target: two arbitrary files
-have no baseline, so the question it answers has no answer for them.
+**It refuses an output that already exists**, and `--replace` is what permits overwriting one. Pass the
+flag only when somebody asked for it. Supplying it on their behalf would turn a refusal they were meant to
+see into a file they did not know they lost.
 
-`convert` has no such question. It reads one file and writes the other, in whichever direction the
-extensions name — `.nost` to `.nostdb` validates then commits, `.nostdb` to `.nost` writes the canonical
-document. Two identical extensions are refused, because that is a copy.
-
-So: reconciling a project is `sync`, and turning one file into the other is `convert`.
+Converting onto a configured project's `.nostdb/root.nostdb` replaces whatever the database held, with no
+check of what changed since. `nostdb sync` is the command that compares a project's two representations
+against a recorded baseline and refuses when both moved — it is not on this surface, so an agent asked to
+reconcile a project rather than convert a file should say so and name that command rather than reach for
+`--replace`.
 
 ### `/nostdb export .` writes the document, once
 
@@ -229,7 +228,6 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | --- | --- | --- |
 | `build` | `/nostdb .` | optional |
 | `export` | `/nostdb export .` | none |
-| `sync` | `/nostdb sync .` | none |
 | `convert` | `/nostdb convert <in> <out>` | none |
 | `summary` | `/nostdb summary .` | none |
 | `query-cypher` | `/nostdb query --cypher '...'` | none |

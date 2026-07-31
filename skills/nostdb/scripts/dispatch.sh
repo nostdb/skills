@@ -126,16 +126,6 @@ case "$action" in
     target=${1:-.}
     echo "$NOSTDB export --nost $target"
     ;;
-  sync)
-    # Reconciles a **project's** two representations, so the argument is the project rather than either
-    # file. `.` when none is given, like every other path-taking action here.
-    #
-    # It takes no source and no target, and that is the command rather than an omission: it decides which
-    # side changed since the two last agreed, by comparing generations and content digests against a
-    # recorded baseline. Two arbitrary files have no baseline, so the question has no answer for them —
-    # which is why `convert` is a separate action rather than a direction flag on this one.
-    echo "$NOSTDB sync ${1:-.}"
-    ;;
   convert)
     # `.nost` <-> `.nostdb`, in whichever direction the extensions name. The Engine decides which, and
     # refuses two identical extensions because that is a copy rather than a conversion.
@@ -143,8 +133,15 @@ case "$action" in
     # Both operands are required. Defaulting either would invent a path somebody did not name, and the one
     # it would invent is an output — a command that writes somewhere nobody asked for is worse than a
     # command that refuses.
+    # `--replace` is passed through when a caller asked for it, and never added. The Engine refuses an
+    # existing output without it, and a Skill that supplied the flag on their behalf would turn a refusal
+    # somebody was meant to see into a file they did not know they lost.
     [ "$#" -ge 2 ] || { echo "convert needs an input and an output" >&2; exit 2; }
-    echo "$NOSTDB convert $1 $2"
+    case "${3:-}" in
+      --replace) echo "$NOSTDB convert $1 $2 --replace" ;;
+      "") echo "$NOSTDB convert $1 $2" ;;
+      *) echo "convert takes an input, an output, and optionally --replace" >&2; exit 2 ;;
+    esac
     ;;
   summary)
     # What a database holds, in five reads that write nothing. Every number is the Engine's: counting

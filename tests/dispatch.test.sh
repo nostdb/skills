@@ -30,7 +30,7 @@ check() {
 # `help` is deliberately absent: it runs nothing, because `/nostdb help` describes the Skill and the
 # Skill is what knows. An action is not required to be one CLI command or to be named after one — what
 # is required is that whatever work happens is the CLI's.
-for action in build export sync summary view; do
+for action in build export summary view; do
   got=$(NOSTDB=ENGINE "$dispatch" "$action" 2>/dev/null || echo "REFUSED")
   case "$got" in
     *ENGINE\ *) echo "ok   $action invokes the CLI" ;;
@@ -102,16 +102,23 @@ check "and the other direction is the same command" "$got" "ENGINE convert x.nos
 "$dispatch" convert only.nost >/dev/null 2>&1 && r=$? || r=$?
 check "convert with one operand is refused" "$r" "2"
 
-# `sync` takes the **project**, not either representation. The surface used to show
-# `/nostdb .nostdb/root.nost --sync`, which names a file — passing that through would hand `sync` a file
-# where it expects the project containing it.
-got=$(NOSTDB=ENGINE "$dispatch" sync . 2>/dev/null)
-check "sync names a project" "$got" "ENGINE sync ."
+# `--replace` is passed through and never added.
+#
+# The Engine refuses an existing output without it. A Skill that supplied the flag on a caller's behalf
+# would turn a refusal they were meant to see into a file they did not know they lost.
+got=$(NOSTDB=ENGINE "$dispatch" convert a.nost b.nostdb --replace 2>/dev/null)
+check "convert passes --replace through when asked" "$got" "ENGINE convert a.nost b.nostdb --replace"
+got=$(NOSTDB=ENGINE "$dispatch" convert a.nost b.nostdb 2>/dev/null)
 case "$got" in
-  *root.nost*) echo "FAIL sync was given a representation rather than a project: [$got]" >&2
+  *--replace*) echo "FAIL convert added --replace nobody asked for: [$got]" >&2
     failures=$((failures + 1)) ;;
-  *) echo "ok   and not a representation" ;;
+  *) echo "ok   and never adds it" ;;
 esac
+
+# `sync` is not on this surface. The CLI keeps the command; the Skill offers only `convert`, so a
+# dispatcher still mapping it would be an action no document declares.
+"$dispatch" sync . >/dev/null 2>&1 && r=$? || r=$?
+check "sync is not an action this Skill maps" "$r" "2"
 
 # `/nostdb help` needs no Engine. It used to map to `nostdb help`, so reading a help message required
 # resolving one — and with none installed, resolution stops and asks whether to install. Nobody should
@@ -144,7 +151,7 @@ echo "ok   and it names every action a caller can ask for"
 # `--scan=default` was written in prose below the fence and appeared in no help output a reader would scan,
 # because the invocation lines show `analyzer` and `ai` and neither says they are two of three. A value nobody
 # can see is not documented, so each one is pinned here by name.
-for expected in "--scan=default|ai" "--cypher '<statement>'"; do
+for expected in "--scan=default|ai" "--cypher '<statement>'" "--replace"; do
   case "$surface" in
     *"$expected"*) : ;;
     *) echo "FAIL the surface omits what $expected accepts" >&2; failures=$((failures + 1)) ;;
@@ -386,7 +393,7 @@ if command -v nostdb >/dev/null 2>&1; then
   work=$(mktemp -d)
   # Configured first, so the guard is exercised in the state a second run is in.
   nostdb init "$work" >/dev/null 2>&1 || true
-  for action in build export sync summary view; do
+  for action in build export summary view; do
     emitted=$(NOSTDB=nostdb "$dispatch" "$action" "$work" 2>/dev/null)
     out=$(sh -c "$emitted" 2>&1 || true)
     case "$out" in
