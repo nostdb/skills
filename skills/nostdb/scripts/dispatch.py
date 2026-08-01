@@ -39,7 +39,10 @@ NOSTDB = os.environ.get("NOSTDB") or "nostdb"
 # preset is a vocabulary, and **deriving a fact from one without a model would make this a second analyzer** —
 # reading annotations the Engine's own analyzers do not read. The interpretation is the model's and the
 # validation is the Engine's.
-NEEDS_A_MODEL = ("preset-apply", "query-natural", "enrich")
+# `scan-ai` is here because it is the whole of `/nostdb . --scan=ai`: the analyzers are not run, so there is
+# nothing for an AI-free path to fall back to. An action that quietly built with the analyzers instead would
+# report a result the caller explicitly did not ask for.
+NEEDS_A_MODEL = ("preset-apply", "query-natural", "scan-ai")
 
 # Every action this dispatcher knows, mapped or not.
 #
@@ -61,6 +64,7 @@ ACTIONS = (
     "query-cypher",
     "view",
     "plugin-add",
+    "check",
     "preset-check",
     *NEEDS_A_MODEL,
 )
@@ -242,6 +246,17 @@ def main(argv: list[str]) -> None:
         if not rest:
             refuse("plugin-add needs a source", 2)
         print(f"{NOSTDB} plugin add {rest[0]}")
+        return
+
+    if action == "check":
+        # Validates any `.nost` or `.nostdb` the caller names, which is what closes the `--scan=ai` loop: the
+        # model writes a candidate document and the Engine says whether it reads.
+        #
+        # A path rather than a preset name, because a candidate is somewhere the caller chose. `preset-check`
+        # below resolves a name against this Skill's own folder and is a different question.
+        if not rest:
+            refuse("check needs a path", 2)
+        print(f"{NOSTDB} check {rest[0]}")
         return
 
     if action == "preset-check":

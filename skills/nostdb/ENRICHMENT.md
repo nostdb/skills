@@ -24,6 +24,26 @@ the Skill cannot accidentally undo.
 A Skill that sent a packet and then reported the cost would be reporting a decision it had
 already made.
 
+## This is the `--scan=default` pipeline
+
+Enrichment is the second pass over what the **analyzers could not cover**, so it presumes they ran. A file a
+deterministic analyzer covers is never sent, which is why a repository written entirely in supported
+languages has nothing eligible: enrichment there spends nothing and changes nothing, however it is asked
+for.
+
+`--scan=ai` is not this document. It does not build, so there is no structural pass to enrich and no packet
+to build from one — a model reads the source itself and writes the graph. [`SCAN.md`](SCAN.md) describes it.
+
+| `ai_mode` | Which units are sent | Asked for by |
+| --- | --- | --- |
+| `auto` | the ones no deterministic analyzer covers | `--scan=default`, and a bare `/nostdb .` |
+| `off` | none | the setting only; there is no flag for it |
+| `full` | every scanned unit | the setting, and what `--scan=ai` plans against |
+
+`nostdb plan` counts this, so the budget check in step 3 runs against what will actually be sent. It has to:
+the check compares the top of the estimate against a hard limit, and an estimate covering a tenth of the
+units would let a run cross that limit while the plan said it fit.
+
 ## What the check decides
 
 | Situation | What happens |

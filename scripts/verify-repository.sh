@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 # their diagnostic unreachable and leave the general rule unproven.
 for required in README.md AGENTS.md CLAUDE.md LICENSE \
     skills/nostdb/ACTIONS.md skills/nostdb/RESOLUTION.md skills/nostdb/ENRICHMENT.md \
-    skills/nostdb/COVERAGE.md; do
+    skills/nostdb/COVERAGE.md skills/nostdb/SCAN.md; do
   if [ ! -e "$required" ]; then
     echo "missing required file: $required" >&2
     exit 1

@@ -11,13 +11,14 @@ is also how `--scan` means something: it selects over this column rather than ho
 | --- | --- | --- |
 | `/nostdb help` | none | describes the surface, answered by the Skill without an Engine |
 | `/nostdb .` | optional | configures the project if it is not, analyzes it, and commits what it found; enrichment is the optional part |
-| `/nostdb . --scan=ai` | required | the same build, with the AI half required rather than optional; fails without a model |
+| `/nostdb . --scan=ai` | required | the analyzers do not run; the same `.nostdb` is produced from a model's reading, and checked in staging before it replaces the project's |
 | `/nostdb export .` | none | writes the graph as canonical `.nost`, once, from what is already built |
 | `/nostdb convert .nostdb/root.nostdb root.nost` | none | converts between `.nost` and `.nostdb`, in whichever direction the extensions name; refuses an existing output unless `--replace` is passed |
 | `/nostdb summary .` | none | reports the totals, the kinds present, and whether the container is sound |
 | `/nostdb query --cypher '...'` | none | runs a statement the caller wrote |
 | `/nostdb query '...'` | required | generates openCypher from a natural-language question |
 | `/nostdb view .` | none | opens a viewer plugin |
+| `/nostdb check root.nostdb` | none | hands a `.nostdb` or `.nost` to the Engine and reports what it breaks, records against the Schemas it holds included; the step that closes the `--scan=ai` loop |
 | `/nostdb plugin add '...'` | none | installs a plugin through the CLI |
 | `/nostdb preset` | none | lists the schema presets, and has the Engine validate one |
 | `/nostdb preset jpa` | required | proposes records in a preset's vocabulary, for the Engine to validate |
@@ -77,9 +78,15 @@ mean the action decides for itself: with no configured budget the contract requi
 rather than proceeding.
 
 `--scan` has a second value, `default`, which is what a bare `/nostdb .` does and therefore has
-no row of its own. Both values run both passes — the deterministic analyzers read what they
-cover, and AI is asked about what they could not resolve. What `ai` changes is that the second
-pass is required, so a run without a model fails instead of reporting a structural-only result.
+no row of its own. The two are different pipelines rather than two settings of one: `default` is
+`nostdb build`, where the analyzers read the source and AI is asked only about what they could not
+resolve. `ai` does not build at all — a model reads every file and the Engine turns its
+reading into the same `.nostdb`, which is checked in staging before it replaces the project's. [`SCAN.md`](SCAN.md) has the five steps.
+
+That is why `ai` is `required` rather than `optional`. There is no second reader to fall back to:
+without a model nothing reads the source, and building with the analyzers instead would report a
+graph the caller did not ask for. The plan's `semantic_candidates` moves with the flag for the same
+reason — under `ai` every scanned file is read, and the budget is checked against that.
 
 Neither value spends nothing. `analysis.ai_mode` in `.nostdb/settings.json` takes `off`, which
 is where a no-tokens guarantee lives, and the Engine reads it on every build.

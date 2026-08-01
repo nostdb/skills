@@ -115,6 +115,25 @@ case "$got" in
   *) echo "ok   and never adds it" ;;
 esac
 
+# `/nostdb check` hands a path to the Engine, which is what closes the `--scan=ai` loop.
+got=$(NOSTDB=ENGINE "$dispatch" check candidate.nost 2>/dev/null)
+check "check emits the Engine's check for the path it was given" "$got" "ENGINE check candidate.nost"
+"$dispatch" check >/dev/null 2>&1 && r=$? || r=$?
+check "check with no path is refused" "$r" "2"
+
+# `--scan=ai` does not build, and the dispatcher is where that is enforceable.
+#
+# The whole of the value is that the analyzers do not run. An action that emitted a build — or fell back to
+# one when no model was available — would report a graph the caller explicitly did not ask for, and the
+# report would look identical to the one they wanted.
+"$dispatch" scan-ai . >/dev/null 2>&1 && r=$? || r=$?
+check "scan-ai has no AI-free mapping" "$r" "1"
+got=$(NOSTDB=ENGINE "$dispatch" scan-ai . 2>&1 >/dev/null || true)
+case "$got" in
+  *build*|*init*) echo "FAIL scan-ai offers a build as a fallback: [$got]" >&2; failures=$((failures + 1)) ;;
+  *) echo "ok   and refuses rather than offering the analyzers instead" ;;
+esac
+
 # `sync` is not on this surface. The CLI keeps the command; the Skill offers only `convert`, so a
 # dispatcher still mapping it would be an action no document declares.
 "$dispatch" sync . >/dev/null 2>&1 && r=$? || r=$?
@@ -312,7 +331,7 @@ check "an unknown action exits 2" "$r" "2"
 # live here, in a case statement, which meant the one place the table's vocabulary and the
 # dispatcher's met was a test no running agent ever opens: an agent could read the table,
 # learn that `/nostdb . --scan=ai` exists, and have no way to discover that the action serving
-# it is called `enrich`.
+# it is called `scan-ai`.
 #
 # So the map is shipped and this checks it, rather than the reverse. Each row names an action,
 # the `/nostdb` invocation it serves, and its declared AI usage.
@@ -395,7 +414,7 @@ else
 fi
 
 # A `required` row must not be reachable through this path at all.
-for action in query-natural enrich; do
+for action in query-natural scan-ai; do
   "$dispatch" "$action" >/dev/null 2>&1 && {
     echo "FAIL $action was dispatched without a model" >&2
     failures=$((failures + 1))

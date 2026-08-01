@@ -42,12 +42,13 @@ database in order to read a help message is the wrong order of operations.
 
 ```text
 /nostdb .                             analyze this folder and write the database
-/nostdb . --scan=ai                   the same, but AI is required; fails without a model
+/nostdb . --scan=ai                   build the database from a model's reading, not the analyzers'
 /nostdb export .                      write the graph as canonical .nost
 /nostdb summary .                     report how much is in the database, and of what kinds
 /nostdb query --cypher '...'          run a statement you wrote
 /nostdb query '...'                   a natural-language query; the generated Cypher is shown
 /nostdb view .                        render the graph through a viewer plugin
+/nostdb check root.nostdb             validate a .nostdb or .nost and report what it breaks
 /nostdb preset                        list the schema presets this Skill ships
 /nostdb preset jpa                    propose records for a preset, and apply them
 /nostdb plugin add '...'              install a plugin from a pinned GitHub source
@@ -61,7 +62,7 @@ An existing output is refused unless --replace is passed:
 
 Options:
   --scan=default                      analyzers first, AI for what they could not resolve
-  --scan=ai                           the same, with the AI half required
+  --scan=ai                           the analyzers do not run; a model reads every file
   --cypher '<statement>'              run a statement you wrote instead of a question
   --replace                           let convert overwrite an existing output
 ```
@@ -74,17 +75,38 @@ choice rather than a side effect of building, and `/nostdb export .` is how it i
 
 ### `--scan` names which reader does the work
 
-Two values. Both run both passes, and what differs is whether the second one is allowed to be missing:
+Two values, and they are **not two settings of one pipeline**. They are different pipelines:
 
-| Written | What happens | AI usage |
-| --- | --- | --- |
-| `--scan=default` | the deterministic analyzers read what they cover, and AI is asked about what they could not resolve, within the configured budget | `optional` |
-| `--scan=ai` | the same two passes, with the AI half **required** — the action fails rather than reporting a structural-only result | `required` |
+| Written | Who reads the source | What produces the graph | AI usage |
+| --- | --- | --- | --- |
+| `--scan=default` | the Engine's analyzers | `nostdb build`, with AI asked only about what they could not resolve | `optional` |
+| `--scan=ai` | a model, from the source itself | the same `.nostdb`, written by the Engine from a candidate the model produced | `required` |
 
-**`ai` does not mean AI alone.** Nothing suppresses the deterministic analyzers: no CLI option does, and the
-contract requires structural analysis of supported source to spend zero external tokens and a valid structural
-generation to be committed before any enrichment. So the analyzers always read first, and this value decides
-whether a run without a model is a result or a failure.
+**`ai` does not run the analyzers.** Not "runs them and requires AI as well" — it does not build.
+
+The deliverable is the same `.nostdb` either way; what changes is who read the source. A model cannot write
+one — the format is opaque and only the Engine writes it — so the model produces a candidate `.nost` and the
+Engine converts it. That candidate is a mechanism rather than a second artifact, and it is not what gets
+validated: **the database is.**
+
+It is validated **before** it replaces anything. `convert --replace` overwrites the project's database, so
+the model's output is built into a staging database first and checked there — a run that validated only
+afterwards would have destroyed the previous generation before learning anything was wrong.
+
+The steps, the fix loop, and the two diagnostics that must **not** be fixed away are in
+[`SCAN.md`](SCAN.md).
+
+Three things about it are worth knowing before typing it:
+
+- **it costs what the repository costs.** Under `default` a file an analyzer covers is never sent to a model,
+  so a Java or Go project has nothing eligible and enrichment there spends nothing. Under `ai` the same
+  project is read end to end. `nostdb plan` counts this, and the budget is checked against that count;
+- **the last step overwrites the database.** `convert` needs `--replace`, and a project that was already
+  built loses the analyzers' facts, any earlier AI contribution, and anything a person contributed.
+  `--scan=ai` is not an increment on top of them;
+- **a model is required.** Without one the action fails rather than quietly building with the analyzers,
+  because a caller who asked for the model's reading and got the analyzers' has been told something untrue
+  about where the graph came from.
 
 `default` is what a bare `/nostdb .` does, so it gets no *invocation* line of its own — there would be
 nothing to say about it that the line above does not already say. It appears in the surface's `Options` block
@@ -252,9 +274,10 @@ Exit `0` mapped, `1` the action needs a model and has no AI-free mapping, `2` un
 | `query-cypher` | `/nostdb query --cypher '...'` | none |
 | `view` | `/nostdb view .` | none |
 | `plugin-add` | `/nostdb plugin add '...'` | none |
+| `check` | `/nostdb check root.nostdb` | none |
 | `preset-check` | `/nostdb preset` | none |
 | `query-natural` | `/nostdb query '...'` | required |
-| `enrich` | `/nostdb . --scan=ai` | required |
+| `scan-ai` | `/nostdb . --scan=ai` | required |
 | `preset-apply` | `/nostdb preset jpa` | required |
 
 ### `/nostdb .` configures, analyzes, and writes
