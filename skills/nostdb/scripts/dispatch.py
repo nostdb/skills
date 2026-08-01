@@ -64,6 +64,7 @@ ACTIONS = (
     "query-cypher",
     "view",
     "plugin-add",
+    "analyzers",
     "check",
     "preset-check",
     *NEEDS_A_MODEL,
@@ -173,6 +174,15 @@ def main(argv: list[str]) -> None:
         # command to run. An action that printed prose instead would make every caller check which kind of
         # output it got.
         refuse("help is answered by the Skill; run scripts/help.py, which needs no Engine", 1)
+
+    if action == "analyzers":
+        # Not a command either, and for the same reason `help` is not: which Skills are installed beside this
+        # one is something the Skill can see and an Engine cannot. Resolving a database to ask what documents
+        # are on disk would be the wrong order of operations twice over.
+        refuse(
+            "analyzers are answered by the Skill; run scripts/analyzers.py, which needs no Engine",
+            1,
+        )
 
     if action == "build":
         # A bare `/nostdb .` end to end: configure the project if it is not configured, then analyze the whole

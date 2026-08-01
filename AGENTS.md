@@ -80,6 +80,29 @@ A preset's records reach the graph through `nostdb apply`, owned by `ai`. That o
 preset safe to modify: an `ai` contribution is withdrawable on its own, so replacing a preset's facts never
 touches what an analyzer wrote.
 
+## Analyzer Skills
+
+A vocabulary for one framework is its own Skill, named `nostdb-analyzer-<framework>`. A framework a project
+does not use is a document nobody should have to install, which is why these are separate rather than folded
+into `nostdb`.
+
+`nostdb` finds them at run time and never references one. An installer copies a skill *folder*, so a path to
+a sibling resolves here and is absent everywhere else — `scripts/analyzers.py` therefore looks at the
+directory it is installed in and reports whichever siblings are there. Correct beside one, beside several,
+and beside none.
+
+Only `SKILL.md`'s `name` and `description` are read. Reaching further into a sibling — its presets, its
+schemas — would couple one Skill to another's internal layout; a definition is the part a Skill publishes.
+
+Two rules, both tested:
+
+- **an analyzer Skill is optional.** Nothing fails when none is installed. What is not acceptable is reading
+  a framework by hand while a Skill for it is installed: that produces the same facts under different names,
+  and the graph then holds two vocabularies for one subject with no way to tell which a query should use;
+- **using one is announced, and announcing one that is not installed is refused.** A Skill claiming a
+  vocabulary it does not have would be claiming a reading nobody performed, and the output would look exactly
+  like the one that did.
+
 ## Invariants this repository must never break
 
 - **An AI-free action has the CLI do the work.** It never computes an answer itself. Two

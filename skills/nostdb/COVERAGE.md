@@ -48,15 +48,19 @@ For an annotation, ask the preset index:
 scripts/presets.py for NotBlank      # this Skill's presets
 ```
 
-For a Skill outside this one, the agent is what knows which are installed — a Skill cannot read another
-Skill's folder, because an installer copies a folder and a reference outside it is absent once installed. So
-the question is asked where the answer is: whatever is running these Skills sees both.
+For a Skill outside this one, [`scripts/analyzers.py`](scripts/analyzers.py) answers which are installed. It
+holds no path to a sibling and no list of names — an installer copies a folder, so a *reference* outside one
+is absent once installed — and instead looks at the directory this Skill is installed in and reports whichever
+`nostdb-analyzer-*` folders are there. Correct beside one, beside several, and beside none.
+
+Asking it beats relying on what the agent believes is installed. A belief can be a year old; a directory
+listing cannot.
 
 Three cases, and they are different:
 
 | Case | What to do |
 | --- | --- |
-| a Skill covers it and is installed | use it, and use its vocabulary |
+| a Skill covers it and is installed | use it, use its vocabulary, and **say so** — `analyzers.py using NAME` prints the line |
 | a Skill covers it and is not installed | say which, and how to install it. Do not read the source instead |
 | nothing covers it | read the source here, and propose with no preset |
 

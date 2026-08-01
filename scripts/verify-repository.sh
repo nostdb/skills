@@ -216,6 +216,15 @@ if [ -x tests/dispatch.test.sh ]; then
   echo "dispatch: every check passed"
 fi
 
+if [ -x tests/analyzers.test.sh ]; then
+  tests/analyzers.test.sh >/dev/null || {
+    echo "the analyzer discovery tests failed" >&2
+    tests/analyzers.test.sh >&2
+    exit 1
+  }
+  echo "analyzers: every check passed"
+fi
+
 if [ -x tests/presets.test.sh ]; then
   tests/presets.test.sh >/dev/null || {
     echo "the preset tests failed" >&2

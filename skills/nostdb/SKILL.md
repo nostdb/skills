@@ -49,6 +49,7 @@ database in order to read a help message is the wrong order of operations.
 /nostdb query '...'                   a natural-language query; the generated Cypher is shown
 /nostdb view .                        render the graph through a viewer plugin
 /nostdb check root.nostdb             validate a .nostdb or .nost and report what it breaks
+/nostdb analyzers                     list the analyzer Skills installed beside this one
 /nostdb preset                        list the schema presets this Skill ships
 /nostdb preset jpa                    propose records for a preset, and apply them
 /nostdb plugin add '...'              install a plugin from a pinned GitHub source
@@ -72,6 +73,38 @@ analyzes the whole tree, and writes `.nostdb/settings.json` and `.nostdb/root.no
 
 It does **not** write `.nost` unless the project already has it enabled. Materialization is an explicit
 choice rather than a side effect of building, and `/nostdb export .` is how it is asked for.
+
+### Analyzer Skills: found, not assumed, and named when used
+
+A vocabulary for one framework is its own Skill — `nostdb-analyzer-springboot` is the first — because a
+framework a project does not use is a document nobody should have to install.
+
+```bash
+scripts/analyzers.py                 # which are installed, and what each reads
+scripts/analyzers.py path NAME       # where one is, so its definition can be read
+scripts/analyzers.py using NAME      # the line to print before using it
+```
+
+**Ask rather than assume.** The script holds no path to a sibling and no list of names: it looks at the
+directory this Skill is installed in and reports whichever `nostdb-analyzer-*` folders are there. That is
+correct beside one, beside several, and beside none — and it beats what an agent believes is installed,
+because a belief can be a year old and a directory listing cannot.
+
+**An analyzer Skill is optional.** Nothing fails without one; `/nostdb` uses the vocabulary it ships itself.
+What is not acceptable is reading a framework by hand *while a Skill for it is installed* — that produces the
+same facts under different names, and the graph then holds two vocabularies for one subject with no way to
+tell which a query should use. [`COVERAGE.md`](COVERAGE.md) has the three cases.
+
+**Say which one you used.** Print what `analyzers.py using NAME` prints, before using it:
+
+```text
+using nostdb-analyzer-springboot, an installed NostDB analyzer Skill, for this project's vocabulary
+```
+
+One sentence rather than whatever each run invents, so a reader sees the same one every time. And the command
+**refuses a name that is not installed**, which is the half that matters: a Skill announcing a vocabulary it
+does not have would be claiming a reading nobody performed, and the output would look exactly like the one
+that did.
 
 ### `--scan` names which reader does the work
 
