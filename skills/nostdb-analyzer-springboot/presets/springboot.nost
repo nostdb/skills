@@ -57,7 +57,7 @@
 // `Schema` is deliberately absent as a name. NostDB already has schemas — this file is made of them — and a
 // label called `Schema` would make `MATCH (s:Schema)` mean two things at once.
 
-@nost 3
+@nost 4
 
 // ---------------------------------------------------------------------------
 // The web contract
