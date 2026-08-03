@@ -259,11 +259,32 @@ if command -v nostdb >/dev/null 2>&1; then
       failures=$((failures + 1)) ;;
   esac
   # And the script can actually read it, which is the whole question.
+  #
+  # The version asked for is taken from the Engine's own reply rather than written here. It was the literal
+  # `2` for three language versions, and every automated run skipped this branch because no Engine was on the
+  # path — so the one check that proves the resolver accepts a real build had been failing, unseen, since the
+  # language moved to 3. A literal in a version test is the thing most certain to go stale and least likely to
+  # be noticed doing it.
   if nostdb --version --json 2>/dev/null | grep -q '"nost_language_versions"'; then
-    got=$(PATH="$(dirname "$(command -v nostdb)"):/usr/bin:/bin" "$resolve" nost_language_version 2 2>/dev/null || echo REFUSED)
-    case "$got" in
-      REFUSED) echo "FAIL a real Engine on the path was refused" >&2; failures=$((failures + 1)) ;;
-      *) echo "ok   a real Engine on the path resolves" ;;
+    want=$(nostdb --version --json 2>/dev/null \
+      | sed -n 's/.*"nost_language_versions": \[\([0-9]*\).*/\1/p' | head -1)
+    if [ -z "$want" ]; then
+      echo "FAIL could not read a language version out of the real report" >&2
+      failures=$((failures + 1))
+    else
+      got=$(PATH="$(dirname "$(command -v nostdb)"):/usr/bin:/bin" "$resolve" nost_language_version "$want" 2>/dev/null || echo REFUSED)
+      case "$got" in
+        REFUSED) echo "FAIL a real Engine on the path was refused for version $want" >&2; failures=$((failures + 1)) ;;
+        *) echo "ok   a real Engine on the path resolves for the version it reports" ;;
+      esac
+    fi
+
+    # And a version it does not report is still refused, so the check above is not passing because the
+    # resolver accepts anything.
+    absent=$(PATH="$(dirname "$(command -v nostdb)"):/usr/bin:/bin" "$resolve" nost_language_version 1 2>/dev/null || echo REFUSED)
+    case "$absent" in
+      REFUSED) echo "ok   and a version it does not report is refused" ;;
+      *) echo "FAIL a real Engine resolved for language version 1" >&2; failures=$((failures + 1)) ;;
     esac
   fi
 else

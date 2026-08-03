@@ -97,5 +97,68 @@ else
   echo "skip no nostdb on the path; the presets were not handed to an Engine"
 fi
 
+# A preset an annotation does not select is reported as such, and never as an annotation match.
+#
+# `project` describes the repository itself, which every project has whether or not it has annotations. The
+# index marks that with `*`. Two things have to hold together: `always` finds it, and `for` does *not* — a
+# reader that treated `*` as an annotation name would claim this preset for a build that reported a literal
+# asterisk, and one that dropped the row would hide the only preset that always applies.
+if python3 "$skill/scripts/presets.py" always | grep -qx "project"; then
+  echo "ok   the always-applicable preset is reported by name"
+else
+  echo "FAIL presets.py always does not report project" >&2
+  failures=$((failures + 1))
+fi
+
+if python3 "$skill/scripts/presets.py" for '*' >/dev/null 2>&1; then
+  echo "FAIL presets.py for '*' matched; `*` is a marker, not an annotation name" >&2
+  failures=$((failures + 1))
+else
+  echo "ok   the marker is refused where an annotation belongs"
+fi
+
+# And it is still an ordinary preset everywhere else: listed, and resolvable to a document.
+for wanted in project jpa; do
+  if [ "$(python3 "$skill/scripts/presets.py" document "$wanted")" = "presets/$wanted.nost" ]; then
+    echo "ok   $wanted resolves to its document"
+  else
+    echo "FAIL $wanted does not resolve to presets/$wanted.nost" >&2
+    failures=$((failures + 1))
+  fi
+done
+
+# The project vocabulary names one required field and nothing an analyzer already reports.
+#
+# `name` required is the whole of what a `Project` record must carry: a record with no name is one nothing can
+# refer to. Every other field is optional because an absent value and a guessed one are different claims.
+project="$skill/presets/project.nost"
+if grep -qE '^  name: string,$' "$project"; then
+  echo "ok   the project vocabulary requires a name"
+else
+  echo "FAIL project.nost does not require name" >&2
+  failures=$((failures + 1))
+fi
+
+# A preset holds facts nothing else can claim. These are the analyzers', and a second copy owned by `ai`
+# would be the same fact twice with no way to tell which a query should trust.
+for owned in file_count line_count languages; do
+  if grep -qE "^  $owned\??:" "$project"; then
+    echo "FAIL project.nost declares $owned, which a build already reports" >&2
+    failures=$((failures + 1))
+  fi
+done
+echo "ok   the project vocabulary claims nothing an analyzer reports"
+
+# The nested fields the request asked for are objects rather than flat strings, so a version stays readable
+# rather than being buried in text nothing can take back out.
+for nested in tech_stack structure; do
+  if grep -qE "^  $nested\?: \{$" "$project"; then
+    echo "ok   $nested is an object type"
+  else
+    echo "FAIL $nested is not declared as an object type" >&2
+    failures=$((failures + 1))
+  fi
+done
+
 [ "$failures" -eq 0 ] || { echo "$failures check(s) failed" >&2; exit 1; }
 echo "presets: every check passed"

@@ -12,5 +12,12 @@
 # them. Matching on the Engine's own report rather than on a framework name is deliberate — naming the
 # framework would need a list of frameworks this build knows of and cannot read, which the root PRD's
 # section 4 forbids by another route.
+#
+# A lone `*` in that column means the preset is selected by nothing and **always applies**. It is a distinct
+# value rather than an empty field because every field here is required: an empty one is a malformed row, and
+# a row that read as malformed would answer "no preset covers that" for annotations a preset does cover. `*`
+# is not an annotation name, so `presets.py for` never matches it — a vocabulary that applies to every project
+# is not one an annotation selects.
 
+project | project.nost | * | what the repository is: its name, what it is built on, and what its significant directories are for
 jpa | jpa.nost | Entity,Table,Column,Id,GeneratedValue,ManyToOne,OneToMany,OneToOne,ManyToMany,JoinColumn,Embeddable,Embedded,Transient | persistence mappings: entities, the columns they hold, and the associations between them

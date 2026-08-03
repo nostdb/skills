@@ -1,0 +1,107 @@
+// The project vocabulary: what a repository says about itself.
+//
+// This file is a `.nost` document and nothing else, so the Engine validates it — `nostdb check` reads it the
+// same way it reads any other. The Skill holds no validator of its own, and a malformed preset fails before
+// it is ever offered to a model.
+//
+// # Why this one always applies
+//
+// Every other preset here is chosen by an annotation the Engine reported and did not read: `@Entity` selects
+// `jpa`, and a project with no persistence mapping never sees it. This one is selected by nothing, because
+// every project has a name and a purpose whether or not it has annotations. The index says so with `*` in
+// the column that otherwise lists annotations.
+//
+// # What it is for
+//
+// A build reads what is on disk: files, directories, and whatever an analyzer could extract from them. It
+// cannot read what the repository is *for*. "A local-first property graph database" is not derivable from
+// any file in the tree, and neither is which of six directories is the one a newcomer should open first.
+//
+// Those are the facts this vocabulary names — and naming them is the point, because
+// `nostdb-spec/docs/NOST_LANGUAGE.md` accepts a consequence rather than solving it: a record may name a
+// schema that was never declared, so a misspelled label is indistinguishable from an intentional bare one. A
+// model writing `Project` today and `ProjectInfo` tomorrow would produce two unvalidated labels and no
+// error.
+//
+// # What it deliberately does not hold
+//
+// Anything an analyzer already reports. No file count, no list of languages present, no line totals: a build
+// writes those, with provenance, and a second copy carrying an `ai` owner would be the same number twice
+// with no way to tell which a query should trust.
+//
+// The line is not "facts about the project" but **facts nothing else can claim**. `tech_stack` survives that
+// line because it is a claim about what the project is built *on*, which a directory listing does not
+// answer; a language the analyzers detected is theirs and is not repeated here.
+//
+// # No edge schemas
+//
+// A project relating to another project is what `@link` already expresses, and links recursively union
+// graphs with cycle detection the Engine owns. An edge here would be a second answer to one question, and
+// the two would drift.
+
+@nost 4
+
+// The repository, as it describes itself.
+//
+// One record per database. Nothing enforces that — a schema constrains a record's shape rather than how many
+// carry it — and a second `Project` record is a proposal to refuse rather than a shape to forbid.
+schema Project {
+  // The name a person uses for it, which is not necessarily the directory name. A build can see the
+  // directory; only somebody reading the repository knows it is called something else.
+  name: string,
+
+  // What it is, in a sentence somebody would recognise. Optional because a repository may genuinely not say
+  // anywhere, and an absent description is a different claim from a guessed one.
+  description?: string,
+
+  // Where it lives canonically, as a locator: a URL or a path. Optional because a project need not be
+  // published, and because this is the *canonical* location rather than wherever the working copy happens to
+  // sit — a path a build could read would answer the second question, not the first.
+  repository?: string,
+
+  // The version the project claims for itself, as written. A string rather than a number because "0.1.6",
+  // "2024.3", and "v3-beta" are all versions somebody wrote down, and parsing them into a common shape would
+  // be inventing an order this graph was not told.
+  version?: string,
+
+  // The licence, preferably an SPDX identifier. Optional, and its absence means "not stated here" rather
+  // than "unlicensed" — those are opposite claims and only one of them is safe to infer.
+  license?: string,
+
+  // What the project is built on: languages, frameworks, databases, build tools.
+  //
+  // An object rather than `string[]` because "PostgreSQL 16" and "PostgreSQL" are the same technology with
+  // and without a version, and a flat list would either lose the version or bury it in a string nothing can
+  // read back out.
+  //
+  // `category` is free text rather than a fixed set. A closed vocabulary here would need a list of every
+  // kind of technology, and the root contract already refuses that shape of list for source languages;
+  // "framework" and "runtime" are not a taxonomy this preset is entitled to fix.
+  tech_stack?: {
+    name: string,
+    category?: string,
+    version?: string
+  }[],
+
+  // What the significant parts of the tree are *for*.
+  //
+  // This is intent, not inventory. A build already writes a `Directory` record for every directory that
+  // exists; this says which of them a reader should open first and why, which no listing answers.
+  //
+  // Embedded rather than edges to those `Directory` records, and deliberately: `Directory` is a label a
+  // build owns, so attaching to one would put an `ai` claim on an analyzer's record, and a path is a mutable
+  // source location rather than an identity — the root contract is explicit about that. An entry describing
+  // `src/` survives the directory being renamed, as a description that is now wrong rather than as a
+  // dangling reference.
+  structure?: {
+    // Relative to the project root, so an entry means the same thing in every checkout.
+    path: string,
+
+    // What lives there, in a few words. Required inside this object: an entry naming a path and nothing else
+    // says only that the path exists, which the build already said.
+    role: string,
+
+    // Room for the sentence `role` has no space for.
+    description?: string
+  }[]
+}

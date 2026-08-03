@@ -51,6 +51,7 @@ database in order to read a help message is the wrong order of operations.
 /nostdb check root.nostdb             validate a .nostdb or .nost and report what it breaks
 /nostdb analyzers                     list the analyzer Skills installed beside this one
 /nostdb preset                        list the schema presets this Skill ships
+/nostdb preset project                describe the repository itself: name, stack, structure
 /nostdb preset jpa                    propose records for a preset, and apply them
 /nostdb plugin add '...'              install a plugin from a pinned GitHub source
 /nostdb help                          this
@@ -423,6 +424,19 @@ By the Engine's own report, not by naming a framework. A build reports the annot
 interpret, and `scripts/presets.py for Entity` answers which preset covers one. Naming the framework instead
 would need a list of frameworks this build knows of and cannot read, which is a closed allowlist by another
 route.
+
+**One preset is chosen by nothing.** `project` describes the repository itself — its name, what it is built
+on, and what its significant directories are for — and every project has those whether or not it has a single
+annotation. The index marks it `*` in the column that otherwise lists annotations, `scripts/presets.py always`
+reports it, and `presets.py for` never matches it, because a vocabulary that applies everywhere is not one an
+annotation selects.
+
+What makes `project` a preset rather than something a build writes is the same line every preset sits on: a
+build reads what is on disk and cannot read what the repository is *for*. "A local-first property graph
+database" is in no file, and neither is which of six directories a newcomer should open first. What it
+deliberately omits is anything the analyzers already report — no file count, no list of languages present —
+because a second copy carrying an `ai` owner would be the same number twice with no way to tell which a query
+should trust.
 
 #### The order, which is the enrichment order
 

@@ -76,7 +76,16 @@ engine=${NOSTDB:-nostdb}
 if command -v "$engine" >/dev/null 2>&1; then
   work=$(mktemp -d)
   trap 'rm -rf "$work"' EXIT
-  printf 'def main(): pass\n' > "$work/app.py"
+  # Ruby, which nothing here analyzes. This was `app.py` until Python gained an analyzer in
+  # Stage 34, and the fixture then produced `semantic_candidates: 0` and a zero estimate — so
+  # every check below asked what the budget does about spending nothing, and `proceed` is the
+  # right answer to that. The three expectations went on saying `ask`, `refuse`, and `skip`,
+  # and nothing noticed because this branch only runs with an Engine on the path, which no
+  # automated run has.
+  #
+  # The same trap `project.rs` records for its own fixture: a language that *is* read makes
+  # the test pass, or fail, for the wrong reason.
+  printf 'class Server\n  def start\n  end\nend\n' > "$work/server.rb"
   "$engine" init "$work" >/dev/null 2>&1
 
   real=$("$engine" plan --format json --project "$work" 2>/dev/null)

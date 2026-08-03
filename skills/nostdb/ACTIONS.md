@@ -21,6 +21,7 @@ is also how `--scan` means something: it selects over this column rather than ho
 | `/nostdb check root.nostdb` | none | hands a `.nostdb` or `.nost` to the Engine and reports what it breaks, records against the Schemas it holds included; the step that closes the `--scan=ai` loop |
 | `/nostdb plugin add '...'` | none | installs a plugin through the CLI |
 | `/nostdb preset` | none | lists the schema presets, and has the Engine validate one |
+| `/nostdb preset project` | required | proposes what the repository is: name, stack, and what its directories are for |
 | `/nostdb preset jpa` | required | proposes records in a preset's vocabulary, for the Engine to validate |
 
 ## What `none` obliges
@@ -66,6 +67,11 @@ Engine validates.
 persistence mapping is called *once something has read it*; nothing in this Skill reads `@Entity`. Deriving
 the facts from a preset AI-free would make the Skill a second analyzer — one reading annotations the
 Engine's own analyzers do not read — and that is precisely what `none` forbids.
+
+`/nostdb preset project` is `required` for the same reason and a plainer one: what a repository is *for* is
+not in any file, so there is nothing for the CLI to read. It is the one preset no annotation selects — every
+project has a name and a purpose — and `scripts/presets.py always` is how it is found rather than by guessing
+a framework.
 
 So the interpretation is the model's, the vocabulary is the preset's, and the validation is the Engine's. The
 proposal's owner is `ai`, which is what makes a preset safe to modify: an `ai` contribution is withdrawable
